@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="100" viewBox="0 0 340 100" role="img" aria-label="aidoo">
+  <rect x="4" y="8" width="84" height="84" rx="24" fill="#f5f5f5"/>
+  <g fill="none" stroke="#171717" stroke-width="10" stroke-linecap="round">
+    <circle cx="43" cy="56" r="15"/><path d="M58 41v30"/>
+  </g>
+  <circle cx="65" cy="29" r="5" fill="#171717"/>
+  <text x="108" y="74" fill="#f5f5f5" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="72" font-weight="700" letter-spacing="-4">aidoo</text>
+</svg>
