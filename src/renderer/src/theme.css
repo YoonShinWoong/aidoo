@@ -1,0 +1,176 @@
+/* Neutral palette shared by system, light, and dark appearance. */
+:root {
+  color-scheme: light;
+  --text: #171717;
+  --secondary: #404040;
+  --muted: #595959;
+  --accent: #171717;
+  --teal: #171717;
+  --on-accent: #ffffff;
+  --bg: #f7f7f7;
+  --panel: #ffffff;
+  --sidebar: #efefef;
+  --subtle: #eeeeee;
+  --hover: #e3e3e3;
+  --active-bg: #dddddd;
+  --selected: #f0f0f0;
+  --border: #cecece;
+  --button-bg: #171717;
+  --button-hover: #333333;
+  --toast-bg: #262626;
+  --error-bg: #262626;
+  --warning-text: #404040;
+  --warning-bg: #eeeeee;
+  --claude-bg: #eeeeee;
+  color: var(--text);
+  background: var(--bg);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --text: #f5f5f5;
+    --secondary: #d4d4d4;
+    --muted: #b3b3b3;
+    --accent: #f5f5f5;
+    --teal: #f5f5f5;
+    --on-accent: #171717;
+    --bg: #141414;
+    --panel: #1e1e1e;
+    --sidebar: #181818;
+    --subtle: #2a2a2a;
+    --hover: #353535;
+    --active-bg: #383838;
+    --selected: #2c2c2c;
+    --border: #484848;
+    --button-bg: #f5f5f5;
+    --button-hover: #d4d4d4;
+    --toast-bg: #303030;
+    --error-bg: #303030;
+    --warning-text: #d4d4d4;
+    --warning-bg: #2a2a2a;
+    --claude-bg: #2a2a2a;
+  }
+}
+
+/* Keep supporting text legible at laptop viewing distance. */
+.brand p,.sidebar-label,.sidebar-footer,.local-card span,.project-item small,
+.breadcrumb,.live,.eyebrow,.page-intro p,.session-total span,.list-caption,
+.list-footer,.agent-name,.detail-top,.detail-agent,.directory-link,.excerpt>span,
+.subtle-tag,.help-text,.muted,.conversation summary,.conversation summary span,
+.detail-footnote,.field-label,.checkbox-label,.modal>p {
+  font-size: 11px;
+  color: var(--muted);
+}
+.project-item span,.nav-item span {font-size: 13px}
+.project-item small {line-height: 1.5}
+.project-item b,.nav-item b,.group-heading b {font-size: 12px;color: var(--secondary);font-weight: 600}
+.sidebar-label {font-size: 10px;letter-spacing: 1px}
+.stats-strip>button>span:not(.stat-icon) {font-size: 12px;color: var(--secondary)}
+.search-box {height: 38px}
+.search-box input {font-size: 12px;color: var(--text)}
+.search-box input::placeholder,.note-section textarea::placeholder {color: var(--muted)}
+.agent-filters button,.pin-button,.status,.detail-actions button {font-size: 11px}
+.group-heading strong {font-size: 12px;color: var(--secondary)}
+.group-heading>span {font-size: 11px;color: var(--muted)}
+.session-card h3 {font-size: 14px;color: var(--text)}
+.card-summary,.excerpt p,.ai-text,.title-suggestion p,.next-action p {font-size: 12px;color: var(--secondary)}
+.card-time {display: flex;align-items: flex-end;flex-direction: column;gap: 4px;flex-shrink: 0;font-variant-numeric: tabular-nums;color: var(--muted)}
+.card-time strong {font-size: 12px;font-weight: 650;color: var(--secondary)}
+.card-time span {font-size: 11px}
+.card-top {align-items: flex-start;gap: 12px}
+.agent-name {padding-top: 2px;flex-wrap: wrap}
+.orca-label {font-size: 10px;color: var(--muted)}
+.detail-updated {display: flex;align-items: center;gap: 6px;font-size: 11px;color: var(--secondary);line-height: 1.7;margin-bottom: 12px;font-variant-numeric: tabular-nums}
+.detail-session {font-size: 10px;color: var(--muted)}
+.section-title h4 {font-size: 12px;color: var(--secondary)}
+.note-section textarea {font-size: 12px;color: var(--text)}
+.ai-button {font-size: 11px;color: var(--accent)}
+.title-suggestion>button {font-size: 11px;color: var(--accent)}
+.message p {font-size: 12px;color: var(--secondary)}
+.message strong {font-size: 11px;color: var(--muted)}
+.done {opacity: 1}
+.done h3 {color: var(--secondary)}
+.button.primary,.brand-icon {color: var(--on-accent)}
+.brand-icon {background: var(--button-bg)}
+.button.primary:hover {background: var(--button-hover)}
+.toast,.toast.error {color: #ffffff}
+.button.secondary {background: var(--panel);border-color: var(--border);color: var(--secondary)}
+.settings-entry {display: flex;align-items: center;gap: 9px;text-align: left;padding: 12px;border-radius: 8px;margin-top: 10px;color: var(--secondary)}
+.settings-entry:hover {background: var(--hover)}
+.settings-entry kbd {margin-left: auto;font: 11px -apple-system;color: var(--muted)}
+.settings-modal {width: 580px;max-height: 85vh;overflow: auto}
+.settings-heading {display: flex;justify-content: space-between;align-items: center;margin-bottom: 20px}
+.settings-heading h2 {margin: 7px 0 0;color: var(--text)}
+.settings-heading .eyebrow {font-size: 10px}
+.settings-section {padding: 19px 0;border-top: 1px solid var(--border)}
+.settings-section h3 {margin: 0 0 8px;font-size: 14px;font-weight: 600;color: var(--text)}
+.settings-section p {font-size: 12px;line-height: 1.9;color: var(--secondary);margin: 0 0 16px}
+.settings-section code {font-size: 11px;overflow-wrap: anywhere}
+.theme-options {display: grid;grid-template-columns: 1.5fr 1fr 1fr;gap: 10px}
+.theme-options button {position: relative;border: 1px solid var(--border);border-radius: 9px;display: flex;align-items: center;flex-direction: column;gap: 10px;padding: 17px 7px;background: var(--panel);color: var(--secondary);font-size: 12px}
+.theme-options button:hover {background: var(--hover)}
+.theme-options button.selected {border-color: var(--accent);color: var(--accent);background: var(--selected);box-shadow: 0 0 0 1px var(--accent)}
+.theme-options button>svg:last-child:not(:first-child) {position: absolute;top: 7px;right: 7px}
+.workspace-roots {display: flex;flex-direction: column;gap: 7px;margin-bottom: 12px}
+.workspace-root {display: flex;gap: 8px;align-items: center;border: 1px solid var(--border);background: var(--bg);border-radius: 7px;padding: 8px 10px;color: var(--secondary)}
+.workspace-root>span {flex: 1;min-width: 0;overflow: hidden;text-overflow: ellipsis;white-space: nowrap;font-size: 12px}
+.settings-footer {display: flex;justify-content: space-between;align-items: center;border-top: 1px solid var(--border);padding-top: 20px}
+.settings-footer>span {font-size: 11px;color: var(--muted)}
+.modal {background: var(--panel);border-color: var(--border)}
+.info-block {font-size: 12px;line-height: 2;color: var(--secondary)}
+.modal h2,.modal .title-input {color: var(--text)}
+.help-text {color: var(--muted)!important}
+
+@media (prefers-contrast: more) {
+  :root {--muted: var(--secondary)}
+  .session-card,.search-box,.note-section textarea,.modal {border-color: var(--secondary)}
+}
+[hidden]{display:none!important}
+.notes-body{display:flex;flex:1;min-height:0;border-top:1px solid var(--border)}
+.notes-list{width:285px;flex-shrink:0;padding:20px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:15px}
+.notes-scroll{overflow:auto;flex:1}.note-card{display:block;width:100%;text-align:left;border:1px solid var(--border);border-radius:9px;padding:14px;margin-bottom:9px;background:var(--panel)}
+.note-card.selected{background:var(--selected);border-color:var(--accent)}.note-card strong{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.note-card p{color:var(--secondary);font-size:12px;line-height:1.7;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}
+.note-card time,.notes-hint{font-size:11px;color:var(--muted)}.note-editor{flex:1;min-width:0;display:flex;flex-direction:column;padding:22px 35px;background:var(--panel)}
+.note-toolbar{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px;margin-bottom:20px}.note-toolbar span{display:flex;align-items:center;gap:6px}
+.note-title{background:none;border:0;font-size:24px;font-weight:600;padding:10px 0;color:var(--text);width:100%}.note-body{resize:none;background:none;border:0;flex:1;padding:18px 0;font-size:14px;line-height:1.9;color:var(--text)}
+.note-title:focus,.note-body:focus{box-shadow:none}.note-title::placeholder,.note-body::placeholder{color:var(--muted)}.note-footer{border-top:1px solid var(--border);padding-top:12px;font-size:11px;color:var(--muted)}
+.notes-empty{flex:1}.notes-error{margin:0 30px 15px}.notes-error button{text-decoration:underline;margin-left:12px}
+
+/* Keep the notebook visible even at the minimum window height. */
+.brand,.sidebar-label,.main-nav,.settings-entry,.local-card,.sidebar-footer {flex-shrink: 0}
+.brand {padding-bottom: 22px}
+.nav-item {flex-shrink: 0}
+.notebook-entry {display: flex;align-items: center;gap: 11px;flex-shrink: 0;width: 100%;min-height: 64px;margin-top: 16px;padding: 12px;border: 1px solid var(--border);border-radius: 10px;background: var(--panel);color: var(--text);text-align: left}
+.notebook-entry>span {display: flex;flex-direction: column;gap: 5px;flex: 1}
+.notebook-entry strong {font-size: 14px;font-weight: 650}
+.notebook-entry small {font-size: 11px;color: var(--secondary)}
+.notebook-entry:hover {background: var(--hover);border-color: var(--accent)}
+.notebook-entry.active {border-color: var(--accent);background: var(--selected);box-shadow: inset 3px 0 0 var(--accent)}
+.projects-label {margin-top: 22px}
+.projects {min-height: 45px}
+.brand-icon i {background: currentColor}
+.dot.green,.dot.amber {background: var(--secondary)}
+.session-card.selected:before {background: var(--accent)}
+.notes-list>.search-box {flex: 0 0 40px}
+.notes-scroll {min-height: 0}
+.note-card {padding: 16px}
+.note-card.selected {box-shadow: inset 3px 0 0 var(--accent)}
+.note-card strong {font-size: 14px}
+.note-card p {font-size: 13px;margin: 9px 0 12px}
+.note-card time,.notes-hint {font-size: 12px}
+.note-body {font-size: 16px;line-height: 1.9;min-height: 120px}
+.note-title {font-size: 26px}
+.note-title:focus-visible,.note-body:focus-visible {outline: 1px solid var(--border);outline-offset: 5px;border-radius: 3px}
+.notes-empty {background: var(--panel)}
+.notes-empty .button {margin-top: 12px}
+.note-section {padding: 15px;border: 1px solid var(--border);border-radius: 9px;background: var(--bg)}
+.note-section .section-title {align-items: flex-start;flex-direction: column;gap: 6px}
+.note-section .section-title h4 {font-size: 14px;color: var(--text)}
+.note-section textarea {font-size: 13px;min-height: 110px}
+@media (max-height: 760px) {
+  .brand {padding-bottom: 14px}
+  .notebook-entry {margin-top: 12px}
+  .projects-label {margin-top: 16px}
+  .local-card {padding: 10px 9px}
+}

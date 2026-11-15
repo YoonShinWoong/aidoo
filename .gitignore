@@ -1,0 +1,22 @@
+node_modules/
+dist/
+release/
+.vite/
+coverage/
+.DS_Store
+__pycache__/
+*.pyc
+
+# Local credentials, runtime data, and reports
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.log
+.claude/
+.codex/
+playwright-report/
+test-results/
+session-state.json
+notes.json

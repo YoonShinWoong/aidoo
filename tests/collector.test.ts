@@ -1,0 +1,65 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { parseRecords, parseLog, shellQuote, clean, sql, run } from '../src/main/collector'
+
+test('Claude adapter excludes tool output, sidechains, and incomplete lines', () => {
+  const rows = [
+    { type: 'user', cwd: '/tmp/project', message: { content: '로그인 오류 수정' } },
+    { type: 'assistant', message: { content: [{ type: 'thinking', thinking: 'private' }, { type: 'text', text: '토큰 갱신 수정 완료' }, { type: 'tool_use', name: 'Bash', input: { command: 'secret' } }] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', content: 'secret' }] } },
+    { type: 'assistant', isSidechain: true, message: { content: 'worker message' } },
+    { type: 'custom-title', customTitle: '인증 수정' }
+  ]
+  const result = parseRecords([...rows.map(r => JSON.stringify(r)), '{unfinished'], 'claude')
+  assert.equal(result.cwd, '/tmp/project')
+  assert.equal(result.title, '인증 수정')
+  assert.deepEqual(result.messages.map(m => m.text), ['로그인 오류 수정', '토큰 갱신 수정 완료'])
+})
+test('Codex adapter reads conversational items without duplicating event messages', () => {
+  const rows = [
+    { type: 'session_meta', payload: { cwd: '/tmp/codex' } },
+    { type: 'event_msg', payload: { type: 'task_started' } },
+    { type: 'event_msg', payload: { type: 'user_message', message: 'fix auth' } },
+    { type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'fix auth' }] } },
+    { type: 'response_item', payload: { type: 'function_call', arguments: 'secret' } },
+    { type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'fixed' }] } },
+    { type: 'event_msg', payload: { type: 'task_complete' } }
+  ]
+  const parsed = parseRecords(rows.map(r => JSON.stringify(r)), 'codex')
+  assert.equal(parsed.cwd, '/tmp/codex')
+  assert.equal(parsed.lastEvent, 'task_complete')
+  assert.deepEqual(parsed.messages.map(m => m.text), ['fix auth', 'fixed'])
+})
+test('head and tail parsing retains first request and newest response for oversized logs', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'aidoo-log-'))
+  try {
+    const file = path.join(dir, 'session.jsonl')
+    const line = (role: string, text: string) => JSON.stringify({ type: role, cwd: '/tmp/project', message: { content: text } }) + '\n'
+    await writeFile(file, line('user', 'first task') + ('{"type":"progress","data":"' + 'x'.repeat(500) + '"}\n').repeat(3000) + line('assistant', 'latest result') + '{unfinished')
+    const parsed = await parseLog(file, 'claude')
+    assert.equal(parsed.messages[0].text, 'first task')
+    assert.equal(parsed.messages.at(-1)?.text, 'latest result')
+    await writeFile(file, line('user', 'new task'))
+    assert.equal((await parseLog(file, 'claude')).messages[0].text, 'new task')
+  } finally { await rm(dir, { recursive: true }) }
+})
+test('shell quoting treats malicious names and paths as literal arguments', async () => {
+  const value = "folder's $(echo injected) `date`\nsecond line"
+  const { stdout } = await run('/bin/sh', ['-c', `printf '%s' ${shellQuote(value)}`])
+  assert.equal(stdout, value)
+})
+test('sqlite adapter cannot write to source databases', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'aidoo-sql-'))
+  try {
+    const file = path.join(dir, 'test.db')
+    await run('/usr/bin/sqlite3', [file, 'CREATE TABLE records (id INTEGER); INSERT INTO records VALUES(1);'])
+    await assert.rejects(sql(file, 'DELETE FROM records'))
+    assert.deepEqual(await sql(file, 'SELECT * FROM records'), [{ id: 1 }])
+  } finally { await rm(dir, { recursive: true }) }
+})
+test('system scaffolding is omitted from summaries', () => {
+  assert.equal(clean('<environment_context>private paths</environment_context>\n실제 요청'), '실제 요청')
+})
