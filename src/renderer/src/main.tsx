@@ -8,8 +8,9 @@ import './style.css'
 import './theme.css'
 import { Notes } from './Notes'
 
-type Filter = 'all' | 'pinned' | 'reply' | 'done'
-const labels: Record<Filter, string> = { all: '모든 작업', pinned: '이어 할 일', reply: '답변 도착', done: '완료한 작업' }
+type Filter = 'all' | 'today' | 'pinned' | 'reply' | 'done'
+const labels: Record<Filter, string> = { all: '모든 작업', today: '최근 24시간', pinned: '이어 할 일', reply: '답변 도착', done: '완료한 작업' }
+const DAY_SECONDS = 86400
 const shortPath = (value: string) => value.replace(/^\/Users\/[^/]+/, '~')
 const folderName = (value: string) => value.split('/').filter(Boolean).at(-1) || value
 const exactTime = (seconds: number) => new Date(seconds * 1000).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
@@ -88,8 +89,10 @@ function App() {
   const sessions = data?.sessions || []
   const state = data?.state || {}
   const titleOf = (s: Session) => state[s.id]?.title || s.originalTitle
+  const activeSince = Date.now() / 1000 - DAY_SECONDS
   const counts = {
     all: sessions.filter(s => !state[s.id]?.done).length,
+    today: sessions.filter(s => s.updatedAt >= activeSince && !state[s.id]?.done).length,
     pinned: sessions.filter(s => state[s.id]?.pinned && !state[s.id]?.done).length,
     reply: sessions.filter(s => s.status === 'reply' && !state[s.id]?.done).length,
     done: sessions.filter(s => state[s.id]?.done).length
@@ -97,6 +100,7 @@ function App() {
   const filtered = sessions.filter(s => {
     const st = state[s.id] || {}
     if (filter === 'done' ? !st.done : st.done) return false
+    if (filter === 'today' && s.updatedAt < activeSince) return false
     if (filter === 'pinned' && !st.pinned) return false
     if (filter === 'reply' && s.status !== 'reply') return false
     if (agent !== 'all' && s.agent !== agent) return false
@@ -175,8 +179,8 @@ function App() {
       <div className="traffic-space" />
       <div className="brand"><div className="brand-icon"><span>a</span><i /></div><div><strong>aidoo</strong><p>AI 작업, 이어서 하다.</p></div></div>
       <div className="sidebar-label">WORKSPACE</div>
-      <nav className="main-nav">{(['all', 'pinned', 'reply', 'done'] as Filter[]).map((f, i) => {
-        const Icon = [LayoutGrid, Pin, Inbox, CircleCheck][i]
+      <nav className="main-nav">{(['all', 'today', 'pinned', 'reply', 'done'] as Filter[]).map((f, i) => {
+        const Icon = [LayoutGrid, Activity, Pin, Inbox, CircleCheck][i]
         return <button key={f} className={filter === f && !directory && !showNotes ? 'nav-item active' : 'nav-item'} onClick={() => { setShowNotes(false); setFilter(f); setDirectory('') }}>
           <Icon size={17} /><span>{labels[f]}</span><b>{counts[f]}</b></button>
       })}</nav>
@@ -194,6 +198,7 @@ function App() {
         <div className="topbar-right"><span className="live"><span className={`dot ${loading ? 'amber' : 'green'}`}/>{loading ? '동기화 중' : '로컬 동기화'}</span><button className="icon-button" title="새로고침 ⌘R" onClick={scan} disabled={loading}><RefreshCw size={16} className={loading ? 'spin' : ''}/></button></div></header>
       <div className="page-intro"><div><div className="eyebrow">YOUR AGENT WORKSPACE</div><h1>{directory ? folderName(directory) : filter === 'all' ? '흩어진 작업을, 한눈에.' : labels[filter]}</h1><p>{directory ? shortPath(directory) : '어디까지 했는지 확인하고, 다음 할 일을 이어가세요.'}</p></div><div className="session-total"><strong>{visible.length}</strong><span>개의 대화</span></div></div>
       <div className="stats-strip">
+        <button onClick={() => { setFilter('today'); setDirectory('') }}><span className="stat-icon teal"><Activity size={16}/></span><span>최근 24시간</span><strong>{counts.today}</strong></button>
         <button onClick={() => { setFilter('pinned'); setDirectory('') }}><span className="stat-icon teal"><Pin size={16}/></span><span>이어 할 일</span><strong>{counts.pinned}</strong></button>
         <button onClick={() => { setFilter('reply'); setDirectory('') }}><span className="stat-icon orange"><Inbox size={16}/></span><span>답변 도착</span><strong>{counts.reply}</strong></button>
         <button onClick={() => { setFilter('done'); setDirectory('') }}><span className="stat-icon gray"><CheckCheck size={17}/></span><span>완료한 작업</span><strong>{counts.done}</strong></button>
@@ -205,7 +210,7 @@ function App() {
         <div className="session-scroll">
           {data?.warnings.map(w => <div className="warning" key={w}>{w}</div>)}
           {!data && loading && <div className="empty-state"><LoaderCircle className="spin" size={28}/><h3>대화를 모으고 있어요</h3><p>Claude Code와 Codex의 로컬 기록을 읽는 중입니다.</p></div>}
-          {data && !visible.length && <div className="empty-state"><Inbox size={34}/><h3>{query ? '검색 결과가 없어요' : filter === 'pinned' ? '이어 할 일을 골라보세요' : filter === 'done' ? '아직 완료한 작업이 없어요' : '표시할 대화가 없어요'}</h3><p>{filter === 'pinned' ? '대화의 핀 버튼을 누르면 여기에 모입니다.' : '필터를 바꾸거나 새 대화를 시작한 뒤 새로고침해 보세요.'}</p><button className="button secondary" onClick={() => { setFilter('all'); setDirectory(''); setQuery(''); setAgent('all') }}>모든 작업 보기</button></div>}
+          {data && !visible.length && <div className="empty-state"><Inbox size={34}/><h3>{query ? '검색 결과가 없어요' : filter === 'today' ? '최근 24시간 동안 활동한 대화가 없어요' : filter === 'pinned' ? '이어 할 일을 골라보세요' : filter === 'done' ? '아직 완료한 작업이 없어요' : '표시할 대화가 없어요'}</h3><p>{filter === 'pinned' ? '대화의 핀 버튼을 누르면 여기에 모입니다.' : '필터를 바꾸거나 새 대화를 시작한 뒤 새로고침해 보세요.'}</p><button className="button secondary" onClick={() => { setFilter('all'); setDirectory(''); setQuery(''); setAgent('all') }}>모든 작업 보기</button></div>}
           {[...groups.entries()].map(([dir, items]) => <div className="session-group" key={dir}>
             <div className="group-heading" title={dir}><FolderOpen size={15}/><strong>{folderName(dir)}</strong><span>{shortPath(dir)}</span><b>{items.length}</b></div>
             {items.map(s => { const st = state[s.id] || {}; return <article key={s.id} className={`session-card ${active?.id === s.id ? 'selected' : ''} ${st.done ? 'done' : ''}`} onClick={() => setSelected(s.id)} tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') setSelected(s.id) }}>
