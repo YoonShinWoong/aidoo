@@ -21,7 +21,11 @@
   --error-bg: #262626;
   --warning-text: #404040;
   --warning-bg: #eeeeee;
-  --claude-bg: #eeeeee;
+  --claude: #b4532f;
+  --claude-tint: rgba(217, 119, 87, .14);
+  --codex: #6a50e8;
+  --codex-tint: rgba(106, 80, 232, .1);
+  --link: #0969da;
   color: var(--text);
   background: var(--bg);
 }
@@ -48,7 +52,11 @@
     --error-bg: #303030;
     --warning-text: #d4d4d4;
     --warning-bg: #2a2a2a;
-    --claude-bg: #2a2a2a;
+    --claude: #e3896b;
+    --claude-tint: rgba(217, 119, 87, .18);
+    --codex: #a49cff;
+    --codex-tint: rgba(164, 156, 255, .16);
+    --link: #4493f8;
   }
 }
 
@@ -174,3 +182,15 @@
   .projects-label {margin-top: 16px}
   .local-card {padding: 10px 9px}
 }
+
+/* Color carries meaning only: agent identity and links. Everything else stays neutral. */
+[data-agent=claude] {--agent: var(--claude);--agent-tint: var(--claude-tint)}
+[data-agent=codex] {--agent: var(--codex);--agent-tint: var(--codex-tint)}
+.agent-mark {background: var(--agent-tint);color: var(--agent)}
+.agent-name[data-agent],.detail-agent[data-agent],.subtle-tag[data-agent] {color: var(--agent)}
+.subtle-tag[data-agent] {background: var(--agent-tint)}
+.conversation[data-agent] .message.assistant strong {color: var(--agent)}
+.agent-filters button[data-agent]::before {content: '';display: inline-block;width: 6px;height: 6px;margin-right: 6px;border-radius: 50%;background: var(--agent);vertical-align: 1px}
+.agent-filters button.selected[data-agent] {color: var(--agent)}
+.directory-link,.ai-button,.title-suggestion>button,.notes-error button {color: var(--link)}
+.directory-link:hover span,.ai-button:not(:disabled):hover,.title-suggestion>button:hover {text-decoration: underline;text-underline-offset: 2px}
