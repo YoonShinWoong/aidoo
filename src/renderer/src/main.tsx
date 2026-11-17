@@ -7,6 +7,7 @@ import type { Session, SessionState, Snapshot, Settings } from '../../shared/typ
 import './style.css'
 import './theme.css'
 import { Notes } from './Notes'
+import { Resizer, usePaneWidth } from './Resizer'
 
 type Order = 'recent' | 'project'
 type Filter = 'all' | 'today' | 'pinned' | 'reply' | 'done'
@@ -46,6 +47,8 @@ function App() {
   const [showInfo, setShowInfo] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [settingsBusy, setSettingsBusy] = useState(false)
+  const sidebar = usePaneWidth('sidebar')
+  const detail = usePaneWidth('detail')
   const search = useRef<HTMLInputElement>(null)
   const scanning = useRef(false)
   const alive = useRef(true)
@@ -182,7 +185,7 @@ function App() {
   }
 
   return <div className="app-shell">
-    <aside className="sidebar">
+    <aside className="sidebar" ref={sidebar.ref} style={sidebar.style}>
       <div className="traffic-space" />
       <div className="brand"><div className="brand-icon"><span>a</span><i /></div><div><strong>aidoo</strong><p>AI 작업, 이어서 하다.</p></div></div>
       <div className="sidebar-label">WORKSPACE</div>
@@ -199,6 +202,7 @@ function App() {
       <button className="local-card" onClick={() => setShowInfo(true)}><ShieldCheck size={18} /><div><strong>내 맥에서 안전하게</strong><span>로컬 수집 · 15초마다 갱신</span></div><ChevronRight size={14} /></button>
       <div className="sidebar-footer"><span className="dot green"/> Claude Code + Codex <button className="icon-button" title="수집 및 요약 안내" onClick={() => setShowInfo(true)}><MoreHorizontal size={16}/></button></div>
     </aside>
+    <Resizer pane={sidebar} edge="end" min={190} max={400} label="사이드바 너비"/>
     <Notes active={showNotes}/>
     <main className="workspace" hidden={showNotes}>
       <header className="topbar"><div className="breadcrumb"><Layers size={15}/><span>나의 작업대</span><ChevronRight size={13}/><strong>{directory ? folderName(directory) : labels[filter]}</strong></div>
@@ -210,7 +214,7 @@ function App() {
         <button onClick={() => { setFilter('reply'); setDirectory('') }}><span className="stat-icon orange"><Inbox size={16}/></span><span>답변 도착</span><strong>{counts.reply}</strong></button>
         <button onClick={() => { setFilter('done'); setDirectory('') }}><span className="stat-icon gray"><CheckCheck size={17}/></span><span>완료한 작업</span><strong>{counts.done}</strong></button>
       </div>
-      <div className="workspace-body"><section className="sessions-pane">
+      <div className="workspace-body"><section className="sessions-pane" data-flex-min="360">
         <div className="list-toolbar"><div className="search-box"><Search size={16}/><input ref={search} value={query} onChange={e => setQuery(e.target.value)} placeholder="주제, 프로젝트, 대화 검색" aria-label="작업 검색"/>{query ? <button onClick={() => setQuery('')} title="검색 지우기"><X size={14}/></button> : <kbd>⌘ K</kbd>}</div>
           <div className="agent-filters">{[['all', '전체'], ['claude', 'Claude'], ['codex', 'Codex']].map(([a, label]) => <button key={a} onClick={() => setAgent(a)} className={agent === a ? 'selected' : ''} data-agent={a === 'all' ? undefined : a}>{label}</button>)}</div></div>
         <div className="list-caption"><span>{directory ? '프로젝트 대화' : grouped ? '프로젝트별 대화' : '전체 대화'} <b>{visible.length}</b></span>{directory ? <span><ArrowDownUp size={12}/> 최근 활동순</span> : <div className="agent-filters order-toggle" role="group" aria-label="목록 정렬">{([['recent', '최근 대화순', ArrowDownUp], ['project', '프로젝트별', FolderOpen]] as const).map(([value, label, Icon]) => <button key={value} className={order === value ? 'selected' : ''} aria-pressed={order === value} onClick={() => changeOrder(value)}><Icon size={12}/>{label}</button>)}</div>}</div>
@@ -232,7 +236,8 @@ function App() {
         </div>
         <footer className="list-footer"><span><span className="dot green"/> {data ? `마지막 갱신 ${new Date(data.scannedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}` : '연결 중'}</span><span>대화 기록은 수정하지 않아요</span></footer>
       </section>
-      <aside className="detail-pane">{active ? <>
+      <Resizer pane={detail} edge="start" min={300} max={720} label="상세 패널 너비"/>
+      <aside className="detail-pane" ref={detail.ref} style={detail.style}>{active ? <>
         <div className="detail-top"><span>작업 살펴보기</span><div><button className={`icon-button ${activeState.pinned ? 'is-pinned' : ''}`} title="할 일 고정" onClick={() => update(active.id, { pinned: !activeState.pinned })}><Pin size={16}/></button><button className="icon-button" title="이름 변경" onClick={() => startRename(active)}><Pencil size={16}/></button></div></div>
         <div className="detail-scroll" key={active.id}>
           <div className="detail-agent" data-agent={active.agent}><AgentMark agent={active.agent}/><span>{active.agent === 'claude' ? 'Claude Code' : 'Codex'}</span><span className="detail-session">{active.sessionId.slice(0, 8)}</span></div>

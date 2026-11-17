@@ -197,3 +197,13 @@
 .agent-filters button.selected[data-agent] {color: var(--agent)}
 .directory-link,.ai-button,.title-suggestion>button,.notes-error button {color: var(--link)}
 .directory-link:hover span,.ai-button:not(:disabled):hover,.title-suggestion>button:hover {text-decoration: underline;text-underline-offset: 2px}
+.sidebar,.detail-pane,.notes-list {flex-shrink: 1}
+.sidebar {min-width: 190px}
+.detail-pane {min-width: 300px}
+.notes-list {min-width: 220px}
+.note-editor,.notes-empty {min-width: 320px}
+.pane-resizer {flex: none;width: 8px;margin: 0 -4px;position: relative;z-index: 5;cursor: col-resize;touch-action: none;-webkit-app-region: no-drag}
+.pane-resizer::after {content: '';position: absolute;top: 0;bottom: 0;left: 3px;width: 2px;background: transparent;transition: background .15s}
+.pane-resizer:hover::after,.pane-resizer:active::after,.pane-resizer:focus-visible::after {background: var(--accent);opacity: .35}
+.pane-resizer:focus-visible {outline: none}
+.is-resizing,.is-resizing * {cursor: col-resize !important;user-select: none}
