@@ -152,6 +152,14 @@ function configureIPC() {
     const session = getSession(id)
     if (session.orcaHandle) { await orcaAction(session, 'switch'); return }
     const command = await resumeCommand(session)
+    if (session.orcaWorktree) {
+      try {
+        const title = (state[id]?.title || session.originalTitle).slice(0, 80)
+        const { stdout } = await run(orcaCLI, ['terminal', 'create', '--worktree', `id:${session.orcaWorktree}`,
+          '--title', title, '--command', command, '--focus', '--json'], 15000)
+        if (JSON.parse(stdout).ok) { await run('/usr/bin/open', ['-a', 'Orca']); return }
+      } catch { /* Orca unreachable: resume in Terminal instead */ }
+    }
     const script = 'on run argv\n tell application "Terminal"\n activate\n do script (item 1 of argv)\n end tell\nend run'
     try { await run('/usr/bin/osascript', ['-e', script, command], 15000) }
     catch { throw new Error('Terminal을 열지 못했습니다. 자동화 권한을 확인하거나 재개 명령을 복사해 주세요.') }

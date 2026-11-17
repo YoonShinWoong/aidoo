@@ -5,7 +5,7 @@ export interface Session {
   originalTitle: string; suggestedTitle: string; goal: string;
   latestRequest: string; latestReply: string; messages: Message[];
   updatedAt: number; status: 'reply' | 'recent' | 'idle'; sourcePath: string;
-  codexHome: string; orcaHandle: string; inOrca: boolean;
+  codexHome: string; orcaHandle: string; inOrca: boolean; orcaWorktree: string;
 }
 export interface AiSummary { title: string; summary: string; nextAction: string; updatedAt: number }
 export interface SessionState { title?: string; pinned?: boolean; done?: boolean; note?: string; ai?: AiSummary }

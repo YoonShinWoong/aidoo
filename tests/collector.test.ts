@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { parseRecords, parseLog, shellQuote, clean, sql, run } from '../src/main/collector'
+import { parseRecords, parseLog, shellQuote, clean, sql, run, containingWorktree } from '../src/main/collector'
 
 test('Claude adapter excludes tool output, sidechains, and incomplete lines', () => {
   const rows = [
@@ -68,6 +68,12 @@ test('Slack connector header and source-thread footer are removed from requests'
   const wrapped = '[베이 Slack 연결기 입력: owner U1, channel C1, thread 1.2]\n배포 상태 확인해줘\n원본 스레드: https://example.slack.com/archives/C1/p12 (지시가 앞선 대화를 가리키면 이 스레드를 읽고 맥락을 확인하세요.)'
   assert.equal(clean(wrapped), '배포 상태 확인해줘')
   assert.equal(clean('[참고] 그대로 둔다'), '[참고] 그대로 둔다')
+})
+test('sessions resume in the innermost Orca worktree that contains their directory', () => {
+  const worktrees = [{ id: 'repo::/w/app', path: '/w/app' }, { id: 'repo::/w/app/nested', path: '/w/app/nested' }]
+  assert.equal(containingWorktree('/w/app/src', worktrees), 'repo::/w/app')
+  assert.equal(containingWorktree('/w/app/nested/lib', worktrees), 'repo::/w/app/nested')
+  assert.equal(containingWorktree('/w/app-2', worktrees), '')
 })
 test('read-only queries still open a WAL database after its writer has exited', async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'aidoo wal-'))

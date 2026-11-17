@@ -15,6 +15,7 @@ const LIMIT = 500
 type Row = Record<string, any>
 interface Parsed { cwd: string; title: string; messages: Message[]; lastEvent: string }
 interface Link { handle: string; title: string; workspacePath: string }
+interface Worktree { id: string; path: string }
 const cache = new Map<string, { version: string; parsed: Parsed }>()
 
 export async function run(file: string, args: string[], timeout = 8000, cwd?: string) {
@@ -121,17 +122,29 @@ async function codexHomes() {
   roots.push(runtime, path.join(runtime, 'home'))
   return [...new Set(roots)]
 }
+async function orcaJSON(args: string[]) {
+  const { stdout } = await run(orcaCLI, [...args, '--json'], 5000)
+  return JSON.parse(stdout)
+}
+export function containingWorktree(cwd: string, worktrees: Worktree[]) {
+  return worktrees.filter(w => cwd === w.path || cwd.startsWith(w.path.replace(/\/$/, '') + '/'))
+    .sort((a, b) => b.path.length - a.path.length)[0]?.id || ''
+}
 async function orcaLinks(warnings: string[]) {
   const links = new Map<string, Link>()
   const aliases: ProjectAlias[] = []
-  let terminals: Row[] = []
+  let terminals: Row[] = [], worktrees: Worktree[] = []
   if (existsSync(orcaCLI)) {
-    try {
-      const { stdout } = await run(orcaCLI, ['terminal', 'list', '--limit', '500', '--json'], 5000)
-      const result = JSON.parse(stdout)
-      terminals = result.result?.terminals || []
-      if (!result.ok) warnings.push('Orca 연결이 제한됩니다. 실행 상태를 확인해 주세요.')
-    } catch { warnings.push('Orca 연결 대기 중 · 로컬 기록은 계속 표시합니다.') }
+    const [terminalList, worktreeList] = await Promise.allSettled([
+      orcaJSON(['terminal', 'list', '--limit', '500']), orcaJSON(['worktree', 'list', '--limit', '1000'])])
+    if (terminalList.status === 'rejected') warnings.push('Orca 연결 대기 중 · 로컬 기록은 계속 표시합니다.')
+    else {
+      terminals = terminalList.value.result?.terminals || []
+      if (!terminalList.value.ok) warnings.push('Orca 연결이 제한됩니다. 실행 상태를 확인해 주세요.')
+    }
+    if (worktreeList.status === 'fulfilled')
+      worktrees = (worktreeList.value.result?.worktrees || [])
+        .filter((w: Row) => w.id && w.path && (w.hostId || 'local') === 'local').map((w: Row) => ({ id: w.id, path: w.path }))
   }
   const byPty = new Map(terminals.map(t => [t.ptyId, t]))
   for (const profile of await entries(path.join(orcaRoot, 'profiles'))) {
@@ -163,7 +176,7 @@ async function orcaLinks(warnings: string[]) {
       }
     } catch { warnings.push(`Orca 프로필을 읽지 못했습니다: ${profile.name}`) }
   }
-  return { links, aliases }
+  return { links, aliases, worktrees }
 }
 function addProjectAliases(domains: Row, aliases: ProjectAlias[]) {
   const repos = new Map<string, string>((domains.repos || []).filter((r: Row) => r.path).map((r: Row) => [r.id, r.path]))
@@ -176,7 +189,7 @@ function addProjectAliases(domains: Row, aliases: ProjectAlias[]) {
   }
   for (const repoPath of repos.values()) aliases.push({ workspacePath: repoPath, projectPath: repoPath })
 }
-async function session(agent: Agent, sid: string, file: string, codexHome: string, meta: Row, links: Map<string, Link>): Promise<Session | null> {
+async function session(agent: Agent, sid: string, file: string, codexHome: string, meta: Row, links: Map<string, Link>, worktrees: Worktree[]): Promise<Session | null> {
   const parsed = await parseLog(file, agent)
   const cwd = meta.cwd || parsed.cwd
   if (!cwd || !parsed.messages.length) return null
@@ -195,12 +208,13 @@ async function session(agent: Agent, sid: string, file: string, codexHome: strin
     goal: compact(first, 400), latestRequest: compact(requests.at(-1)?.text || '', 600),
     latestReply: compact(replies.at(-1)?.text || '', 1000), messages: parsed.messages,
     updatedAt, status: reply ? 'reply' : Date.now() / 1000 - updatedAt < 120 ? 'recent' : 'idle',
-    sourcePath: file, codexHome, orcaHandle: link?.handle || '', inOrca: !!link
+    sourcePath: file, codexHome, orcaHandle: link?.handle || '', inOrca: !!link,
+    orcaWorktree: containingWorktree(cwd, worktrees)
   }
 }
 export async function collect(workspaceRoots: string[] = [path.join(home, 'workspace')]) {
   const warnings: string[] = []
-  const { links, aliases } = await orcaLinks(warnings)
+  const { links, aliases, worktrees } = await orcaLinks(warnings)
   const sessions = new Map<string, Session>()
   const roots = [...new Set([path.join(home, '.claude/projects'),
     ...(process.env.CLAUDE_CONFIG_DIR ? [path.join(process.env.CLAUDE_CONFIG_DIR, 'projects')] : [])])]
@@ -218,7 +232,7 @@ export async function collect(workspaceRoots: string[] = [path.join(home, 'works
   candidates.sort((a, b) => b.mtime - a.mtime)
   for (const { file } of candidates.slice(0, LIMIT)) {
     try {
-      const item = await session('claude', path.basename(file, '.jsonl'), file, '', {}, links)
+      const item = await session('claude', path.basename(file, '.jsonl'), file, '', {}, links, worktrees)
       if (item) sessions.set(item.id, item)
     } catch { warnings.push(`Claude 기록 일부를 읽지 못했습니다: ${path.basename(file)}`) }
   }
@@ -234,7 +248,7 @@ export async function collect(workspaceRoots: string[] = [path.join(home, 'works
       for (const row of rows) {
         if (row.agent_role || /subagent/i.test(row.source || '')) continue
         try {
-          const item = await session('codex', row.id, row.rollout_path, root, row, links)
+          const item = await session('codex', row.id, row.rollout_path, root, row, links, worktrees)
           if (item && (!sessions.has(item.id) || item.inOrca)) sessions.set(item.id, item)
         } catch { /* stale index entry, unavailable log */ }
       }
