@@ -8,6 +8,7 @@ import './style.css'
 import './theme.css'
 import { Notes } from './Notes'
 
+type Order = 'recent' | 'project'
 type Filter = 'all' | 'today' | 'pinned' | 'reply' | 'done'
 const labels: Record<Filter, string> = { all: '모든 작업', today: '최근 24시간', pinned: '이어 할 일', reply: '답변 도착', done: '완료한 작업' }
 const DAY_SECONDS = 86400
@@ -31,6 +32,7 @@ function App() {
   const [filter, setFilter] = useState<Filter>('all')
   const [directory, setDirectory] = useState('')
   const [agent, setAgent] = useState('all')
+  const [order, setOrder] = useState<Order>(() => { try { return localStorage.getItem('aidoo.order') === 'project' ? 'project' : 'recent' } catch { return 'recent' } })
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState('')
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null)
@@ -106,13 +108,18 @@ function App() {
     if (agent !== 'all' && s.agent !== agent) return false
     const q = query.toLocaleLowerCase().trim()
     return !q || [titleOf(s), s.projectPath, s.cwd, s.goal, s.latestRequest, s.latestReply, st.note, st.ai?.summary].join(' ').toLocaleLowerCase().includes(q)
-  }).sort((a, b) => Number(!!state[b.id]?.pinned) - Number(!!state[a.id]?.pinned) || b.updatedAt - a.updatedAt)
+  }).sort((a, b) => b.updatedAt - a.updatedAt)
   const dirCounts = new Map<string, number>()
   for (const s of filtered) dirCounts.set(s.projectPath, (dirCounts.get(s.projectPath) || 0) + 1)
   const dirs = [...dirCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
   const visible = filtered.filter(s => !directory || s.projectPath === directory)
+  const grouped = order === 'project' && !directory
   const groups = new Map<string, Session[]>()
-  for (const s of visible) groups.set(s.projectPath, [...(groups.get(s.projectPath) || []), s])
+  if (grouped) for (const s of visible) groups.set(s.projectPath, [...(groups.get(s.projectPath) || []), s])
+  function changeOrder(next: Order) {
+    setOrder(next)
+    try { localStorage.setItem('aidoo.order', next) } catch { /* storage unavailable: keep for this window only */ }
+  }
   const active = visible.find(s => s.id === selected) || visible[0]
   const activeState = active ? state[active.id] || {} : {}
   async function changeSettings(patch: Partial<Settings>) {
@@ -206,15 +213,15 @@ function App() {
       <div className="workspace-body"><section className="sessions-pane">
         <div className="list-toolbar"><div className="search-box"><Search size={16}/><input ref={search} value={query} onChange={e => setQuery(e.target.value)} placeholder="주제, 프로젝트, 대화 검색" aria-label="작업 검색"/>{query ? <button onClick={() => setQuery('')} title="검색 지우기"><X size={14}/></button> : <kbd>⌘ K</kbd>}</div>
           <div className="agent-filters">{[['all', '전체'], ['claude', 'Claude'], ['codex', 'Codex']].map(([a, label]) => <button key={a} onClick={() => setAgent(a)} className={agent === a ? 'selected' : ''} data-agent={a === 'all' ? undefined : a}>{label}</button>)}</div></div>
-        <div className="list-caption"><span>{directory ? '프로젝트 대화' : '프로젝트별 대화'} <b>{visible.length}</b></span><span><ArrowDownUp size={12}/> 최근 활동순</span></div>
+        <div className="list-caption"><span>{directory ? '프로젝트 대화' : grouped ? '프로젝트별 대화' : '전체 대화'} <b>{visible.length}</b></span>{directory ? <span><ArrowDownUp size={12}/> 최근 활동순</span> : <div className="agent-filters order-toggle" role="group" aria-label="목록 정렬">{([['recent', '최근 대화순', ArrowDownUp], ['project', '프로젝트별', FolderOpen]] as const).map(([value, label, Icon]) => <button key={value} className={order === value ? 'selected' : ''} aria-pressed={order === value} onClick={() => changeOrder(value)}><Icon size={12}/>{label}</button>)}</div>}</div>
         <div className="session-scroll">
           {data?.warnings.map(w => <div className="warning" key={w}>{w}</div>)}
           {!data && loading && <div className="empty-state"><LoaderCircle className="spin" size={28}/><h3>대화를 모으고 있어요</h3><p>Claude Code와 Codex의 로컬 기록을 읽는 중입니다.</p></div>}
           {data && !visible.length && <div className="empty-state"><Inbox size={34}/><h3>{query ? '검색 결과가 없어요' : filter === 'today' ? '최근 24시간 동안 활동한 대화가 없어요' : filter === 'pinned' ? '이어 할 일을 골라보세요' : filter === 'done' ? '아직 완료한 작업이 없어요' : '표시할 대화가 없어요'}</h3><p>{filter === 'pinned' ? '대화의 핀 버튼을 누르면 여기에 모입니다.' : '필터를 바꾸거나 새 대화를 시작한 뒤 새로고침해 보세요.'}</p><button className="button secondary" onClick={() => { setFilter('all'); setDirectory(''); setQuery(''); setAgent('all') }}>모든 작업 보기</button></div>}
-          {[...groups.entries()].map(([dir, items]) => <div className="session-group" key={dir}>
-            <div className="group-heading" title={dir}><FolderOpen size={15}/><strong>{folderName(dir)}</strong><span>{shortPath(dir)}</span><b>{items.length}</b></div>
+          {(grouped ? [...groups] : [['', visible] as const]).map(([dir, items]) => <div className="session-group" key={dir || 'recent'}>
+            {grouped && <div className="group-heading" title={dir}><FolderOpen size={15}/><strong>{folderName(dir)}</strong><span>{shortPath(dir)}</span><b>{items.length}</b></div>}
             {items.map(s => { const st = state[s.id] || {}; return <article key={s.id} className={`session-card ${active?.id === s.id ? 'selected' : ''} ${st.done ? 'done' : ''}`} onClick={() => setSelected(s.id)} tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') setSelected(s.id) }}>
-              <div className="card-top"><span className="agent-name" data-agent={s.agent}><AgentMark agent={s.agent} small/>{s.agent === 'claude' ? 'Claude Code' : 'Codex'}{s.inOrca && <span className="orca-label"><Link2 size={10}/> Orca</span>}</span><time className="card-time" dateTime={new Date(s.updatedAt * 1000).toISOString()} title={exactTime(s.updatedAt)}><strong>{relativeTime(s.updatedAt)}</strong><span>{shortTime(s.updatedAt)}</span></time></div>
+              <div className="card-top"><span className="agent-name" data-agent={s.agent}><AgentMark agent={s.agent} small/>{s.agent === 'claude' ? 'Claude Code' : 'Codex'}{s.inOrca && <span className="orca-label"><Link2 size={10}/> Orca</span>}{!directory && !grouped && <span className="card-project" title={shortPath(s.projectPath)}><Folder size={11}/>{folderName(s.projectPath)}</span>}</span><time className="card-time" dateTime={new Date(s.updatedAt * 1000).toISOString()} title={exactTime(s.updatedAt)}><strong>{relativeTime(s.updatedAt)}</strong><span>{shortTime(s.updatedAt)}</span></time></div>
               <h3>{st.done && <CircleCheck size={15}/>} {titleOf(s)}</h3>
               <p className="card-summary">{st.ai?.summary || s.latestReply || s.latestRequest}</p>
               {st.note && <p className="card-note"><Pencil size={11}/>{st.note}</p>}

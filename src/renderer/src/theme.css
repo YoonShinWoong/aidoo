@@ -88,6 +88,9 @@
 .card-top {align-items: flex-start;gap: 12px}
 .agent-name {padding-top: 2px;flex-wrap: wrap}
 .orca-label {font-size: 10px;color: var(--muted)}
+.list-caption {align-items: center}
+.order-toggle button {display: inline-flex;align-items: center;gap: 4px}
+.card-project {display: inline-flex;align-items: center;gap: 4px;margin-left: 4px;font-size: 11px;font-weight: 600;color: var(--secondary)}
 .detail-updated {display: flex;align-items: center;gap: 6px;font-size: 11px;color: var(--secondary);line-height: 1.7;margin-bottom: 12px;font-variant-numeric: tabular-nums}
 .detail-session {font-size: 10px;color: var(--muted)}
 .section-title h4 {font-size: 12px;color: var(--secondary)}
