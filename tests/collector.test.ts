@@ -22,6 +22,7 @@ test('Codex adapter reads conversational items without duplicating event message
   const rows = [
     { type: 'session_meta', payload: { cwd: '/tmp/codex' } },
     { type: 'event_msg', payload: { type: 'task_started' } },
+    { type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: '# AGENTS.md instructions for /tmp/codex\n\n<INSTRUCTIONS>rules</INSTRUCTIONS>' }] } },
     { type: 'event_msg', payload: { type: 'user_message', message: 'fix auth' } },
     { type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'fix auth' }] } },
     { type: 'response_item', payload: { type: 'function_call', arguments: 'secret' } },
@@ -62,4 +63,18 @@ test('sqlite adapter cannot write to source databases', async () => {
 })
 test('system scaffolding is omitted from summaries', () => {
   assert.equal(clean('<environment_context>private paths</environment_context>\n실제 요청'), '실제 요청')
+})
+test('Slack connector header and source-thread footer are removed from requests', () => {
+  const wrapped = '[베이 Slack 연결기 입력: owner U1, channel C1, thread 1.2]\n배포 상태 확인해줘\n원본 스레드: https://example.slack.com/archives/C1/p12 (지시가 앞선 대화를 가리키면 이 스레드를 읽고 맥락을 확인하세요.)'
+  assert.equal(clean(wrapped), '배포 상태 확인해줘')
+  assert.equal(clean('[참고] 그대로 둔다'), '[참고] 그대로 둔다')
+})
+test('read-only queries still open a WAL database after its writer has exited', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'aidoo wal-'))
+  try {
+    const file = path.join(dir, 'state_5.sqlite')
+    await run('/usr/bin/sqlite3', [file, "PRAGMA journal_mode=WAL; CREATE TABLE threads(id); INSERT INTO threads VALUES ('t1');"])
+    await rm(file + '-wal', { force: true }); await rm(file + '-shm', { force: true })
+    assert.deepEqual(await sql(file, 'SELECT id FROM threads'), [{ id: 't1' }])
+  } finally { await rm(dir, { recursive: true, force: true }) }
 })

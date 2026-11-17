@@ -29,11 +29,20 @@ async function json(file: string, fallback: any = null): Promise<any> {
 }
 export async function sql(file: string, query: string): Promise<Row[]> {
   // macOS ships sqlite3; every connection explicitly read-only. No native npm ABI dependency.
-  const { stdout } = await run('/usr/bin/sqlite3', ['-readonly', '-json', '-cmd', '.timeout 1000', file, query])
+  const read = (target: string) => run('/usr/bin/sqlite3', ['-readonly', '-json', '-cmd', '.timeout 1000', target, query])
+  let stdout: string
+  try { ({ stdout } = await read(file)) } catch (error) {
+    // After the writer exits, a WAL database has no -shm and a read-only connection cannot create one.
+    if (existsSync(file + '-wal')) throw error
+    stdout = (await read(`file:${file.split('/').map(encodeURIComponent).join('/')}?immutable=1`)).stdout
+  }
   return stdout.trim() ? JSON.parse(stdout) : []
 }
 export function clean(text: string) {
   return text.replace(/<(environment_context|system-reminder|user_instructions|developer_instructions)[^>]*>[\s\S]*?<\/\1>/g, '')
+    // Slack 연결기(베이)가 요청마다 붙이는 머리말과 원본 스레드 안내
+    .replace(/^\s*\[[^\]\n]{1,40} 입력: [^\]\n]*\]\s*/, '')
+    .replace(/\s*원본 스레드: https:\/\/\S+ \([^)\n]*\)\s*$/, '')
     .replace(/```[\s\S]*?```/g, '[코드]').trim()
 }
 export function compact(text: string, length = 180) {
@@ -70,7 +79,7 @@ export function parseRecords(lines: string[], agent: Agent): Parsed {
       text = contentText(p.content)
     }
     text = clean(text)
-    if (!text || /^(<local-command|<command-|Caveat:|<task-notification)/.test(text)) continue
+    if (!text || /^(<local-command|<command-|Caveat:|<task-notification|# AGENTS\.md instructions\b)/.test(text)) continue
     const signature = `${role}:${text}`
     if (seen.has(signature)) continue
     seen.add(signature)
@@ -109,7 +118,7 @@ async function codexHomes() {
   for (const item of await entries(path.join(orcaRoot, 'codex-accounts')))
     if (item.isDirectory()) roots.push(path.join(orcaRoot, 'codex-accounts', item.name, 'home'))
   const runtime = path.join(orcaRoot, 'codex-runtime-home')
-  if (existsSync(runtime)) roots.push(runtime)
+  roots.push(runtime, path.join(runtime, 'home'))
   return [...new Set(roots)]
 }
 async function orcaLinks(warnings: string[]) {
