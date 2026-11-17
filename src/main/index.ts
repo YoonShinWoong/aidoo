@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell, clipboard, Tray, Menu, nativeImage, nativeTheme, dialog } from 'electron'
-import { promises as fs } from 'node:fs'
+import { promises as fs, existsSync } from 'node:fs'
 import path from 'node:path'
 import { collect, findCLI, orcaCLI, resumeCommand, run, home } from './collector'
 import type { Session, SessionState, AiSummary, Settings, Note } from '../shared/types'
@@ -151,6 +151,7 @@ function configureIPC() {
   ipcMain.handle('open-session', async (_e, id) => {
     const session = getSession(id)
     if (session.orcaHandle) { await orcaAction(session, 'switch'); return }
+    if (!existsSync(session.cwd)) throw new Error('대화를 실행하던 폴더가 지워져서 이어갈 수 없어요.')
     const command = await resumeCommand(session)
     if (session.orcaWorktree) {
       try {

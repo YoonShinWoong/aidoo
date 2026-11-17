@@ -13,6 +13,12 @@ export async function resolveProject(cwd: string, workspaceRoots: string[], alia
   const alias = aliases.filter(a => containsPath(a.workspacePath, directory))
     .sort((a, b) => b.workspacePath.length - a.workspacePath.length)[0]
   if (alias) return path.resolve(alias.projectPath)
+  if (!(await fs.stat(directory).catch(() => null))) {
+    // A deleted Orca workspace no longer has an alias, but its siblings still name the project.
+    const siblings = new Set(aliases.filter(a => path.resolve(a.workspacePath) !== path.resolve(a.projectPath) &&
+      containsPath(path.dirname(path.resolve(a.workspacePath)), directory)).map(a => path.resolve(a.projectPath)))
+    if (siblings.size === 1) return [...siblings][0]
+  }
 
   const root = workspaceRoots.map(p => path.resolve(p)).filter(p => containsPath(p, directory))
     .sort((a, b) => b.length - a.length)[0]

@@ -20,7 +20,13 @@ test('path membership respects directory boundaries and nested workspace roots',
 test('Orca worktrees resolve to the original registered project with descendants included', async () => {
   const aliases = [{ workspacePath: '/orca/workspaces/project/angelshark', projectPath: '/work/project' }]
   assert.equal(await resolveProject('/orca/workspaces/project/angelshark/src', ['/work'], aliases), '/work/project')
-  assert.equal(await resolveProject('/orca/workspaces/project/angelshark-extra', [], aliases), '/orca/workspaces/project/angelshark-extra')
+  assert.equal(await resolveProject('/orca/workspaces/project/angelshark-extra', [], aliases), '/work/project')
+})
+test('deleted Orca workspaces resolve through a sibling only when the siblings agree on one project', async () => {
+  const aliases = [{ workspacePath: '/orca/workspaces/shared/a', projectPath: '/work/one' }, { workspacePath: '/orca/workspaces/shared/b', projectPath: '/work/two' },
+    { workspacePath: '/work/one', projectPath: '/work/one' }]
+  assert.equal(await resolveProject('/orca/workspaces/shared/deleted', [], aliases), '/orca/workspaces/shared/deleted')
+  assert.equal(await resolveProject('/work/deleted-repo', [], aliases), '/work/deleted-repo')
 })
 test('Git worktrees outside Orca also resolve to their common repository', async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'aidoo-project-'))

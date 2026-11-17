@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Activity, ArrowDownUp, ArrowUpRight, Check, CheckCheck, ChevronRight, Circle, CircleCheck,
-  Code2, Copy, Folder, FolderOpen, Inbox, Layers, LayoutGrid, Link2, LoaderCircle, MoreHorizontal,
+  Code2, Copy, Folder, FolderOpen, FolderX, Inbox, Layers, LayoutGrid, Link2, LoaderCircle, MoreHorizontal,
   Pencil, Pin, RefreshCw, Search, ShieldCheck, Sparkles, Terminal, X, Settings as SettingsIcon, Monitor, Sun, Moon, Plus, Clock3, FileText } from 'lucide-react'
 import type { Session, SessionState, Snapshot, Settings } from '../../shared/types'
 import './style.css'
@@ -239,7 +239,7 @@ function App() {
           <h2>{titleOf(active)}</h2>
           <div className="detail-updated"><Clock3 size={13}/><span>최근 활동 <time dateTime={new Date(active.updatedAt * 1000).toISOString()}>{exactTime(active.updatedAt)}</time></span></div>
           <button className="directory-link" title={active.cwd} onClick={() => perform(() => window.aidoo.showFolder(active.id))}><Folder size={13}/><span>{shortPath(active.cwd)}</span><ArrowUpRight size={12}/></button>
-          <button className="button primary open-session" disabled={actionBusy} onClick={() => perform(() => window.aidoo.openSession(active.id))}>{active.orcaHandle || active.orcaWorktree ? <ArrowUpRight size={16}/> : <Terminal size={16}/>} {active.orcaHandle ? 'Orca에서 대화 열기' : active.orcaWorktree ? 'Orca에서 세션 재개' : 'Terminal에서 세션 재개'}</button>
+          <button className="button primary open-session" disabled={actionBusy || (!active.orcaHandle && active.cwdMissing)} onClick={() => perform(() => window.aidoo.openSession(active.id))}>{active.orcaHandle ? <><ArrowUpRight size={16}/> Orca에서 대화 열기</> : active.cwdMissing ? <><FolderX size={16}/> 작업 폴더가 지워졌어요</> : active.orcaWorktree ? <><ArrowUpRight size={16}/> Orca에서 세션 재개</> : <><Terminal size={16}/> Terminal에서 세션 재개</>}</button>
           <div className="detail-actions"><button onClick={() => update(active.id, { pinned: !activeState.pinned })}><Pin size={13}/>{activeState.pinned ? '고정 해제' : '이어 할 일로'}</button><button onClick={() => update(active.id, { done: !activeState.done })}><CircleCheck size={14}/>{activeState.done ? '완료 취소' : '완료 처리'}</button><button title="재개 명령 복사" onClick={() => perform(() => window.aidoo.copyResume(active.id), '재개 명령을 복사했어요.')}><Copy size={14}/></button></div>
           <div className="detail-divider"/>
           <section className="summary-section"><div className="section-title"><h4><Sparkles size={14}/> {activeState.ai ? 'AI 작업 요약' : '최근 대화 발췌'}</h4><span className="subtle-tag" data-agent={activeState.ai ? 'claude' : undefined}>{activeState.ai ? 'Claude' : '로컬'}</span></div>
@@ -253,7 +253,7 @@ function App() {
           <section className="title-suggestion"><div className="section-title"><h4>이름 추천</h4><span className="subtle-tag">{activeState.ai ? 'AI 추천' : '첫 요청에서'}</span></div><p>{activeState.ai?.title || active.suggestedTitle}</p><button onClick={() => startRename(active, true)}><Pencil size={12}/> 이 이름으로 변경<ChevronRight size={13}/></button></section>
           <section className="note-section"><div className="section-title"><h4>내가 이어 할 일</h4><span className="muted">입력 후 포커스를 옮기면 저장</span></div><textarea key={`${active.id}-note`} defaultValue={activeState.note || ''} maxLength={6000} onBlur={e => { if (e.target.value !== (activeState.note || '')) update(active.id, { note: e.target.value }) }} placeholder="다음에 돌아왔을 때 기억할 내용을 적어두세요."/></section>
           <details className="conversation" data-agent={active.agent}><summary>대화 기록 보기 <span>{active.messages.length}개 발췌</span></summary>{active.messages.map((m, i) => <div key={i} className={`message ${m.role}`}><strong>{m.role === 'user' ? '나' : active.agent === 'claude' ? 'Claude' : 'Codex'}</strong><p>{m.text}</p></div>)}</details>
-          <p className="detail-footnote">{active.orcaHandle ? '연결된 Orca 탭으로 이동합니다.' : active.orcaWorktree ? 'Orca 워크스페이스에 새 탭을 열고 같은 세션을 재개합니다.' : 'Orca에 등록되지 않은 폴더라 Terminal에서 같은 세션을 재개합니다.'}<br/>실행 상태는 대화 기록만으로 확정하지 않습니다.</p>
+          <p className="detail-footnote">{active.orcaHandle ? '연결된 Orca 탭으로 이동합니다.' : active.cwdMissing ? '대화를 실행하던 워크스페이스 폴더가 삭제돼서 이어갈 수 없어요. 대화 기록은 그대로 볼 수 있어요.' : active.orcaWorktree ? 'Orca 워크스페이스에 새 탭을 열고 같은 세션을 재개합니다.' : 'Orca에 등록되지 않은 폴더라 Terminal에서 같은 세션을 재개합니다.'}<br/>실행 상태는 대화 기록만으로 확정하지 않습니다.</p>
         </div>
       </> : <div className="empty-detail"><Activity size={30}/><h3>한 번에 하나씩, 이어가세요.</h3><p>대화를 선택하면 진행 내용과<br/>다음 할 일을 확인할 수 있어요.</p></div>}</aside></div>
     </main>

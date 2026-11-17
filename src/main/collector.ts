@@ -209,7 +209,7 @@ async function session(agent: Agent, sid: string, file: string, codexHome: strin
     latestReply: compact(replies.at(-1)?.text || '', 1000), messages: parsed.messages,
     updatedAt, status: reply ? 'reply' : Date.now() / 1000 - updatedAt < 120 ? 'recent' : 'idle',
     sourcePath: file, codexHome, orcaHandle: link?.handle || '', inOrca: !!link,
-    orcaWorktree: containingWorktree(cwd, worktrees)
+    orcaWorktree: containingWorktree(cwd, worktrees), cwdMissing: !existsSync(cwd)
   }
 }
 export async function collect(workspaceRoots: string[] = [path.join(home, 'workspace')]) {

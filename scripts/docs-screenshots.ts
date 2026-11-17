@@ -25,7 +25,7 @@ async function main() {
     suggestedTitle: title, goal: request, latestRequest: request, latestReply: reply,
     messages: [{ role: 'user', text: request, timestamp: new Date(now).toISOString() }, { role: 'assistant', text: reply, timestamp: new Date(now).toISOString() }],
     updatedAt: now / 1000 - (i * 8 + 2) * 60, status: i === 3 ? 'recent' : 'reply',
-    sourcePath: '', codexHome: '', orcaHandle: i < 2 ? `demo-${i}` : '', inOrca: i < 2, orcaWorktree: '',
+    sourcePath: '', codexHome: '', orcaHandle: i < 2 ? `demo-${i}` : '', inOrca: i < 2, orcaWorktree: '', cwdMissing: false,
   }))
   const snapshot: Snapshot = {
     sessions, warnings: [], scannedAt: now, aiAvailable: true,
