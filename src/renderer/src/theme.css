@@ -221,3 +221,19 @@
 .stats-strip>button {min-width: 0}
 .stats-strip>button>span:not(.stat-icon) {min-width: 0;white-space: nowrap;overflow: hidden;text-overflow: ellipsis}
 @media (max-width: 1150px) {.stats-strip .stat-icon {display: none}}
+.list-toolbar {padding: 14px 0 12px}
+.list-caption {margin-bottom: 10px}
+.session-group+.session-group {margin-top: 16px}
+.group-heading {margin-bottom: 8px}
+.session-card {padding: 10px 14px;margin-bottom: 6px;border-radius: 8px}
+.session-card.selected:before {top: 10px;bottom: 10px;height: auto}
+.card-top {align-items: center;gap: 8px}
+.agent-name {padding-top: 0;min-width: 0}
+.card-meta {display: flex;align-items: center;gap: 8px;flex-shrink: 0}
+.card-time {flex-direction: row;align-items: baseline;gap: 5px}
+.session-card h3 {margin: 5px 0 1px;line-height: 1.45}
+.card-bottom {margin-top: 0;gap: 8px}
+.card-summary {flex: 1;min-width: 0;display: block;white-space: nowrap;overflow: hidden;text-overflow: ellipsis;line-height: 1.6}
+.pin-button {padding: 2px;border-radius: 4px;flex-shrink: 0;opacity: 0;transition: opacity .15s}
+.session-card:hover .pin-button,.session-card.selected .pin-button,.pin-button:focus-visible,.pin-button.pinned {opacity: 1}
+.card-note {margin-top: 5px;padding: 3px 7px}

@@ -238,12 +238,11 @@ function App() {
           {(grouped ? [...groups] : [['', visible] as const]).map(([dir, items]) => <div className="session-group" key={dir || 'recent'}>
             {grouped && <div className="group-heading" title={dir}><FolderOpen size={15}/><strong>{folderName(dir)}</strong><span>{shortPath(dir)}</span><b>{items.length}</b></div>}
             {items.map(s => { const st = state[s.id] || {}; return <article key={s.id} className={`session-card ${active?.id === s.id ? 'selected' : ''} ${st.done ? 'done' : ''}`} onClick={() => setSelected(s.id)} tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') setSelected(s.id) }}>
-              <div className="card-top"><span className="agent-name" data-agent={s.agent}><AgentMark agent={s.agent} small/>{s.agent === 'claude' ? 'Claude Code' : 'Codex'}{s.inOrca && <span className="orca-label"><Link2 size={10}/> Orca</span>}{!directory && !grouped && <span className="card-project" title={shortPath(s.projectPath)}><Folder size={11}/>{folderName(s.projectPath)}</span>}</span><time className="card-time" dateTime={new Date(s.updatedAt * 1000).toISOString()} title={exactTime(s.updatedAt)}><strong>{relativeTime(s.updatedAt)}</strong><span>{shortTime(s.updatedAt)}</span></time></div>
+              <div className="card-top"><span className="agent-name" data-agent={s.agent}><AgentMark agent={s.agent} small/>{s.agent === 'claude' ? 'Claude Code' : 'Codex'}{s.inOrca && <span className="orca-label"><Link2 size={10}/> Orca</span>}{!directory && !grouped && <span className="card-project" title={shortPath(s.projectPath)}><Folder size={11}/>{folderName(s.projectPath)}</span>}</span><span className="card-meta"><StatusChip status={s.status} done={st.done}/><time className="card-time" dateTime={new Date(s.updatedAt * 1000).toISOString()} title={exactTime(s.updatedAt)}><strong>{relativeTime(s.updatedAt)}</strong><span>{shortTime(s.updatedAt)}</span></time></span></div>
               <h3>{st.done && <CircleCheck size={15}/>} {titleOf(s)}</h3>
-              <p className="card-summary">{st.ai?.summary || s.latestReply || s.latestRequest}</p>
+              <div className="card-bottom"><p className="card-summary">{st.ai?.summary || s.latestReply || s.latestRequest}</p>
+                <button className={`pin-button ${st.pinned ? 'pinned' : ''}`} title={st.pinned ? '이어 할 일에서 해제' : '이어 할 일로 고정'} aria-label={st.pinned ? '이어 할 일에서 해제' : '이어 할 일로 고정'} aria-pressed={!!st.pinned} onClick={e => { e.stopPropagation(); update(s.id, { pinned: !st.pinned }) }}><Pin size={13}/></button></div>
               {st.note && <p className="card-note"><Pencil size={11}/>{st.note}</p>}
-              <div className="card-bottom"><StatusChip status={s.status} done={st.done}/>
-                <button className={`pin-button ${st.pinned ? 'pinned' : ''}`} title={st.pinned ? '이어 할 일에서 해제' : '이어 할 일로 고정'} onClick={e => { e.stopPropagation(); update(s.id, { pinned: !st.pinned }) }}><Pin size={14}/>{st.pinned ? '고정됨' : '할 일로 고정'}</button></div>
             </article> })}
           </div>)}
         </div>
