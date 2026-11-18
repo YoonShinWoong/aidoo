@@ -97,6 +97,20 @@ test('Claude turn state follows stop reasons, tool results, interrupts and turn 
   assert.equal(turn(ask, working, { type: 'user', message: { content: [{ type: 'text', text: '[Request interrupted by user]' }] } }), 'ended')
   assert.equal(turn(ask, working, { type: 'system', subtype: 'turn_duration' }), 'ended')
 })
+test('idle compaction and metadata records do not count as new activity', () => {
+  const rows = [
+    { type: 'user', timestamp: '2026-11-16T07:40:00.000Z', message: { content: '소개 자료 만들어줘' } },
+    { type: 'assistant', timestamp: '2026-11-16T07:44:24.241Z', message: { stop_reason: 'end_turn', content: [{ type: 'text', text: '완성했어요' }] } },
+    { type: 'system', subtype: 'turn_duration', timestamp: '2026-11-16T07:44:24.358Z' },
+    { type: 'system', subtype: 'compact_boundary', timestamp: '2026-11-16T08:39:37.235Z' },
+    { type: 'user', isCompactSummary: true, timestamp: '2026-11-16T08:39:37.233Z', message: { content: 'This session is being continued from a previous conversation' } },
+    { type: 'ai-title', timestamp: '2026-11-18T01:00:00.000Z' }
+  ]
+  const parsed = parseRecords(rows.map(r => JSON.stringify(r)), 'claude')
+  assert.equal(parsed.activeAt, Date.parse('2026-11-16T07:44:24.241Z') / 1000)
+  assert.equal(parsed.messages.at(-1)?.text, '완성했어요')
+  assert.equal(parsed.turn, 'ended')
+})
 test('session status separates running agents from finished turns and dropped ones', () => {
   assert.equal(sessionStatus('claude', 'open', 'assistant', 'busy', 9999), 'working')
   assert.equal(sessionStatus('claude', 'ended', 'assistant', 'idle', 5), 'reply')

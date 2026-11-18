@@ -14,7 +14,7 @@ const LOG_BUDGET = 768 * 1024
 const LIMIT = 500
 type Row = Record<string, any>
 type Turn = 'open' | 'ended' | ''
-interface Parsed { cwd: string; title: string; messages: Message[]; turn: Turn }
+interface Parsed { cwd: string; title: string; messages: Message[]; turn: Turn; activeAt: number }
 interface Link { handle: string; title: string; workspacePath: string }
 interface Worktree { id: string; path: string }
 const cache = new Map<string, { version: string; parsed: Parsed }>()
@@ -65,7 +65,7 @@ function claudeTurn(row: Row): Turn {
   return /^\s*(\[Request interrupted|<local-command|<command-)/.test(contentText(message.content)) ? 'ended' : 'open'
 }
 export function parseRecords(lines: string[], agent: Agent): Parsed {
-  const parsed: Parsed = { cwd: '', title: '', messages: [], turn: '' }
+  const parsed: Parsed = { cwd: '', title: '', messages: [], turn: '', activeAt: 0 }
   const seen = new Set<string>()
   for (const line of lines) {
     let row: Row
@@ -76,8 +76,10 @@ export function parseRecords(lines: string[], agent: Agent): Parsed {
       parsed.cwd ||= row.cwd || ''
       if (row.type === 'custom-title') parsed.title = row.customTitle || ''
       if (row.type === 'system' && row.subtype === 'turn_duration') parsed.turn = 'ended'
-      if (!['user', 'assistant'].includes(row.type)) continue
-      if (!row.isMeta && !row.isCompactSummary) parsed.turn = claudeTurn(row)
+      // Idle compaction and metadata records keep touching old logs, so only real turns count as activity.
+      if (!['user', 'assistant'].includes(row.type) || row.isMeta || row.isCompactSummary) continue
+      parsed.turn = claudeTurn(row)
+      parsed.activeAt = Math.max(parsed.activeAt, Date.parse(row.timestamp) / 1000 || 0)
       role = row.type
       text = contentText(row.message?.content)
     } else {
@@ -241,7 +243,7 @@ async function session(agent: Agent, sid: string, file: string, codexHome: strin
   const first = requests[0]?.text || ''
   const suggestedTitle = compact(first.split('\n').find(l => l.trim()) || originalTitle, 52) || '새 작업'
   const modifiedAt = (await fs.stat(file)).mtimeMs / 1000
-  let updatedAt = meta.updated_at || modifiedAt
+  let updatedAt = meta.updated_at || parsed.activeAt || modifiedAt
   if (updatedAt > 100000000000) updatedAt /= 1000
   return {
     id: `${agent}:${sid}`, sessionId: sid, agent, cwd, projectPath: link?.workspacePath || cwd,
