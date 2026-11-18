@@ -128,7 +128,7 @@ Conversation transcripts are not copied into a separate on-disk archive. Optiona
 
 ### Current scope
 
-- **Activity comes from conversation history.** A recent reply is not proof that an agent is finished, running, or waiting for approval.
+- **Status comes from process state and history.** Claude Code sessions are read from the status file each running session keeps; Codex sessions from the task start and completion events in their log. A Claude Code session waiting for approval shows as a reply; Codex approval waits are not told apart.
 - **Collection is bounded.** Up to 500 recent sessions; up to 768 KiB from the beginning and end of each transcript. Long conversations can omit the middle. Subagent records are excluded as standalone work.
 - **Opening a session has limits.** Orca terminal matching is supported; finding existing Terminal, iTerm, or IDE tabs is not. Remote hosts and Orca native chat tabs are not supported.
 - **Integrations can change.** Orca matching uses some private storage formats. Already-open Claude Code or Codex screens may need a refresh or resume to show a renamed session. Partial rename failures are reported in the app.

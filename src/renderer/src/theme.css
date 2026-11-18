@@ -26,6 +26,7 @@
   --codex: #6a50e8;
   --codex-tint: rgba(106, 80, 232, .1);
   --link: #0969da;
+  --working: #0757b8;
   color: var(--text);
   background: var(--bg);
 }
@@ -57,6 +58,7 @@
     --codex: #a49cff;
     --codex-tint: rgba(164, 156, 255, .16);
     --link: #4493f8;
+    --working: #79b8ff;
   }
 }
 
@@ -207,3 +209,15 @@
 .pane-resizer:hover::after,.pane-resizer:active::after,.pane-resizer:focus-visible::after {background: var(--accent);opacity: .35}
 .pane-resizer:focus-visible {outline: none}
 .is-resizing,.is-resizing * {cursor: col-resize !important;user-select: none}
+.status.working {color: var(--working);background: transparent;box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--working) 45%, transparent)}
+.status.working .dot {background: var(--working);animation: status-pulse 1.4s ease-in-out infinite}
+.status.reply {color: var(--on-accent);background: var(--accent)}
+.status.reply .dot {background: var(--on-accent)}
+.status.stalled {color: var(--muted);background: transparent;box-shadow: inset 0 0 0 1px var(--border)}
+.stat-icon.working {background: var(--subtle);color: var(--working)}
+.detail-updated .status {margin-left: auto}
+@keyframes status-pulse {50% {opacity: .25}}
+@media (prefers-reduced-motion: reduce) {.status.working .dot {animation: none}}
+.stats-strip>button {min-width: 0}
+.stats-strip>button>span:not(.stat-icon) {min-width: 0;white-space: nowrap;overflow: hidden;text-overflow: ellipsis}
+@media (max-width: 1150px) {.stats-strip .stat-icon {display: none}}

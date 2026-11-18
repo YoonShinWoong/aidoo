@@ -4,7 +4,7 @@ export interface Session {
   id: string; sessionId: string; agent: Agent; cwd: string; projectPath: string;
   originalTitle: string; suggestedTitle: string; goal: string;
   latestRequest: string; latestReply: string; messages: Message[];
-  updatedAt: number; status: 'reply' | 'recent' | 'idle'; sourcePath: string;
+  updatedAt: number; status: 'working' | 'reply' | 'stalled' | 'recent' | 'idle'; sourcePath: string;
   codexHome: string; orcaHandle: string; inOrca: boolean; orcaWorktree: string; cwdMissing: boolean;
 }
 export interface AiSummary { title: string; summary: string; nextAction: string; updatedAt: number }

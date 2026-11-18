@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { parseRecords, parseLog, shellQuote, clean, sql, run, containingWorktree } from '../src/main/collector'
+import { parseRecords, parseLog, shellQuote, clean, sql, run, containingWorktree, sessionStatus } from '../src/main/collector'
 
 test('Claude adapter excludes tool output, sidechains, and incomplete lines', () => {
   const rows = [
@@ -31,7 +31,7 @@ test('Codex adapter reads conversational items without duplicating event message
   ]
   const parsed = parseRecords(rows.map(r => JSON.stringify(r)), 'codex')
   assert.equal(parsed.cwd, '/tmp/codex')
-  assert.equal(parsed.lastEvent, 'task_complete')
+  assert.equal(parsed.turn, 'ended')
   assert.deepEqual(parsed.messages.map(m => m.text), ['fix auth', 'fixed'])
 })
 test('head and tail parsing retains first request and newest response for oversized logs', async () => {
@@ -83,4 +83,26 @@ test('read-only queries still open a WAL database after its writer has exited', 
     await rm(file + '-wal', { force: true }); await rm(file + '-shm', { force: true })
     assert.deepEqual(await sql(file, 'SELECT id FROM threads'), [{ id: 't1' }])
   } finally { await rm(dir, { recursive: true, force: true }) }
+})
+test('Claude turn state follows stop reasons, tool results, interrupts and turn markers', () => {
+  const turn = (...rows: object[]) => parseRecords(rows.map(r => JSON.stringify(r)), 'claude').turn
+  const ask = { type: 'user', message: { content: '테스트 돌려줘' } }
+  const working = { type: 'assistant', message: { stop_reason: 'tool_use', content: [{ type: 'text', text: '돌리는 중이에요' }, { type: 'tool_use' }] } }
+  const done = { type: 'assistant', message: { stop_reason: 'end_turn', content: [{ type: 'text', text: '다 통과했어요' }] } }
+  assert.equal(turn(ask), 'open')
+  assert.equal(turn(ask, working), 'open')
+  assert.equal(turn(ask, working, { type: 'user', message: { content: [{ type: 'tool_result', content: 'ok' }] } }), 'open')
+  assert.equal(turn(ask, done), 'ended')
+  assert.equal(turn(ask, done, { type: 'user', isMeta: true, message: { content: 'Caveat: local' } }), 'ended')
+  assert.equal(turn(ask, working, { type: 'user', message: { content: [{ type: 'text', text: '[Request interrupted by user]' }] } }), 'ended')
+  assert.equal(turn(ask, working, { type: 'system', subtype: 'turn_duration' }), 'ended')
+})
+test('session status separates running agents from finished turns and dropped ones', () => {
+  assert.equal(sessionStatus('claude', 'open', 'assistant', 'busy', 9999), 'working')
+  assert.equal(sessionStatus('claude', 'ended', 'assistant', 'idle', 5), 'reply')
+  assert.equal(sessionStatus('claude', 'open', 'assistant', undefined, 30), 'working')
+  assert.equal(sessionStatus('claude', 'open', 'assistant', undefined, 3600), 'stalled')
+  assert.equal(sessionStatus('codex', 'open', 'assistant', undefined, 300), 'working')
+  assert.equal(sessionStatus('codex', 'ended', 'assistant', undefined, 300), 'reply')
+  assert.equal(sessionStatus('claude', 'ended', 'user', undefined, 3600), 'idle')
 })

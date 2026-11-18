@@ -38,6 +38,12 @@ try {
   expect(await page.locator('.session-card').count()).toBe(cardCount)
   await page.getByRole('button', { name: '최근 대화순' }).click()
   await expect(page.locator('.group-heading')).toHaveCount(0)
+  await page.locator('.nav-item', { hasText: '작업 중' }).click()
+  console.log('Working now:', await page.locator('.session-card').count())
+  expect(await page.locator('.session-card .status.working').count()).toBe(await page.locator('.session-card').count())
+  await page.locator('.nav-item', { hasText: '답변 도착' }).click()
+  expect(await page.locator('.session-card .status.reply').count()).toBe(await page.locator('.session-card').count())
+  await page.locator('.nav-item', { hasText: '모든 작업' }).click()
   const widthOf = async (selector: string) => Math.round((await page.locator(selector).boundingBox())!.width)
   const drag = async (name: string, dx: number) => {
     const box = (await page.getByRole('separator', { name }).boundingBox())!
@@ -86,7 +92,7 @@ try {
     expect(colors.timeSize).toBe('12px')
     await page.getByRole('button', { name: '설정 닫기' }).click()
     const contrasts = await page.evaluate(() => {
-      return ['.card-summary', '.card-time strong', '.excerpt p', '.list-footer'].map(selector => {
+      return ['.card-summary', '.card-time strong', '.excerpt p', '.list-footer', '.session-card .status.reply', '.session-card .status.working'].filter(selector => document.querySelector(selector)).map(selector => {
         const element = document.querySelector(selector)!
         let parent: Element | null = element
         let background = 'rgb(255, 255, 255)'
@@ -121,7 +127,7 @@ try {
   await page.locator('.modal button[type="submit"], .modal button.button.primary').click()
   await expect(page.locator('.detail-pane h2')).toHaveText('에이두 UI 검증')
   await page.locator('.detail-actions button').nth(0).click()
-  await page.locator('.nav-item').nth(2).click()
+  await page.locator('.nav-item', { hasText: '이어 할 일' }).click()
   await expect(page.locator('.session-card')).toHaveCount(1)
   await page.locator('textarea:visible').fill('다음에 테스트 결과 확인')
   await page.locator('.detail-pane h2').click()
@@ -131,10 +137,10 @@ try {
   await expect(page.locator('.card-note')).toContainText('다음에 테스트 결과 확인')
   await page.locator('.detail-actions button').nth(1).click()
   await expect(page.locator('.session-card')).toHaveCount(0)
-  await page.locator('.nav-item').nth(4).click()
+  await page.locator('.nav-item', { hasText: '완료한 작업' }).click()
   await expect(page.locator('.session-card')).toHaveCount(1)
   await page.locator('.detail-actions button').nth(1).click()
-  await page.locator('.nav-item').nth(0).click()
+  await page.locator('.nav-item', { hasText: '모든 작업' }).click()
   await page.locator('input[aria-label="작업 검색"]').fill('에이두 UI 검증')
   await expect(page.locator('.session-card')).toHaveCount(1)
   await page.locator('input[aria-label="작업 검색"]').fill('no-matching-task-9f53')

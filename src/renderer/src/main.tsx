@@ -10,8 +10,15 @@ import { Notes } from './Notes'
 import { Resizer, usePaneWidth } from './Resizer'
 
 type Order = 'recent' | 'project'
-type Filter = 'all' | 'today' | 'pinned' | 'reply' | 'done'
-const labels: Record<Filter, string> = { all: '모든 작업', today: '최근 24시간', pinned: '이어 할 일', reply: '답변 도착', done: '완료한 작업' }
+type Filter = 'all' | 'today' | 'pinned' | 'working' | 'reply' | 'done'
+const labels: Record<Filter, string> = { all: '모든 작업', today: '최근 24시간', pinned: '이어 할 일', working: '작업 중', reply: '답변 도착', done: '완료한 작업' }
+const statusLabels: Record<Session['status'], [string, string]> = {
+  working: ['작업 중', '에이전트가 지금 응답을 만들거나 도구를 실행하고 있어요.'],
+  reply: ['답변 도착', '에이전트가 작업을 마치고 내 답을 기다려요.'],
+  stalled: ['중단됨', '작업 도중 멈춘 대화예요. 터미널이 닫혔거나 응답이 끊겼어요.'],
+  recent: ['최근 활동', '방금 내가 보낸 요청이 마지막 기록이에요.'],
+  idle: ['이전 대화', '마지막 기록이 내 요청이에요.']
+}
 const DAY_SECONDS = 86400
 const shortPath = (value: string) => value.replace(/^\/Users\/[^/]+/, '~')
 const folderName = (value: string) => value.split('/').filter(Boolean).at(-1) || value
@@ -26,6 +33,10 @@ function relativeTime(seconds: number) {
 }
 function AgentMark({ agent, small = false }: { agent: string; small?: boolean }) {
   return <span className={`agent-mark ${small ? 'small' : ''}`} data-agent={agent}>{agent === 'claude' ? <Sparkles size={small ? 11 : 17} /> : <Code2 size={small ? 12 : 18} />}</span>
+}
+function StatusChip({ status, done }: { status: Session['status']; done?: boolean }) {
+  return <span className={`status ${done ? 'completed' : status}`} title={done ? undefined : statusLabels[status][1]}>
+    {done ? <Check size={11}/> : <span className="dot"/>}{done ? '완료' : statusLabels[status][0]}</span>
 }
 function App() {
   const [data, setData] = useState<Snapshot | null>(null)
@@ -99,6 +110,7 @@ function App() {
     all: sessions.filter(s => !state[s.id]?.done).length,
     today: sessions.filter(s => s.updatedAt >= activeSince && !state[s.id]?.done).length,
     pinned: sessions.filter(s => state[s.id]?.pinned && !state[s.id]?.done).length,
+    working: sessions.filter(s => s.status === 'working' && !state[s.id]?.done).length,
     reply: sessions.filter(s => s.status === 'reply' && !state[s.id]?.done).length,
     done: sessions.filter(s => state[s.id]?.done).length
   }
@@ -107,7 +119,7 @@ function App() {
     if (filter === 'done' ? !st.done : st.done) return false
     if (filter === 'today' && s.updatedAt < activeSince) return false
     if (filter === 'pinned' && !st.pinned) return false
-    if (filter === 'reply' && s.status !== 'reply') return false
+    if ((filter === 'working' || filter === 'reply') && s.status !== filter) return false
     if (agent !== 'all' && s.agent !== agent) return false
     const q = query.toLocaleLowerCase().trim()
     return !q || [titleOf(s), s.projectPath, s.cwd, s.goal, s.latestRequest, s.latestReply, st.note, st.ai?.summary].join(' ').toLocaleLowerCase().includes(q)
@@ -189,8 +201,8 @@ function App() {
       <div className="traffic-space" />
       <div className="brand"><div className="brand-icon"><span>a</span><i /></div><div><strong>aidoo</strong><p>AI 작업, 이어서 하다.</p></div></div>
       <div className="sidebar-label">WORKSPACE</div>
-      <nav className="main-nav">{(['all', 'today', 'pinned', 'reply', 'done'] as Filter[]).map((f, i) => {
-        const Icon = [LayoutGrid, Activity, Pin, Inbox, CircleCheck][i]
+      <nav className="main-nav">{(['all', 'today', 'pinned', 'working', 'reply', 'done'] as Filter[]).map((f, i) => {
+        const Icon = [LayoutGrid, Activity, Pin, LoaderCircle, Inbox, CircleCheck][i]
         return <button key={f} className={filter === f && !directory && !showNotes ? 'nav-item active' : 'nav-item'} onClick={() => { setShowNotes(false); setFilter(f); setDirectory('') }}>
           <Icon size={17} /><span>{labels[f]}</span><b>{counts[f]}</b></button>
       })}</nav>
@@ -211,6 +223,7 @@ function App() {
       <div className="stats-strip">
         <button onClick={() => { setFilter('today'); setDirectory('') }}><span className="stat-icon teal"><Activity size={16}/></span><span>최근 24시간</span><strong>{counts.today}</strong></button>
         <button onClick={() => { setFilter('pinned'); setDirectory('') }}><span className="stat-icon teal"><Pin size={16}/></span><span>이어 할 일</span><strong>{counts.pinned}</strong></button>
+        <button onClick={() => { setFilter('working'); setDirectory('') }}><span className="stat-icon working"><LoaderCircle size={16}/></span><span>작업 중</span><strong>{counts.working}</strong></button>
         <button onClick={() => { setFilter('reply'); setDirectory('') }}><span className="stat-icon orange"><Inbox size={16}/></span><span>답변 도착</span><strong>{counts.reply}</strong></button>
         <button onClick={() => { setFilter('done'); setDirectory('') }}><span className="stat-icon gray"><CheckCheck size={17}/></span><span>완료한 작업</span><strong>{counts.done}</strong></button>
       </div>
@@ -221,7 +234,7 @@ function App() {
         <div className="session-scroll">
           {data?.warnings.map(w => <div className="warning" key={w}>{w}</div>)}
           {!data && loading && <div className="empty-state"><LoaderCircle className="spin" size={28}/><h3>대화를 모으고 있어요</h3><p>Claude Code와 Codex의 로컬 기록을 읽는 중입니다.</p></div>}
-          {data && !visible.length && <div className="empty-state"><Inbox size={34}/><h3>{query ? '검색 결과가 없어요' : filter === 'today' ? '최근 24시간 동안 활동한 대화가 없어요' : filter === 'pinned' ? '이어 할 일을 골라보세요' : filter === 'done' ? '아직 완료한 작업이 없어요' : '표시할 대화가 없어요'}</h3><p>{filter === 'pinned' ? '대화의 핀 버튼을 누르면 여기에 모입니다.' : '필터를 바꾸거나 새 대화를 시작한 뒤 새로고침해 보세요.'}</p><button className="button secondary" onClick={() => { setFilter('all'); setDirectory(''); setQuery(''); setAgent('all') }}>모든 작업 보기</button></div>}
+          {data && !visible.length && <div className="empty-state"><Inbox size={34}/><h3>{query ? '검색 결과가 없어요' : filter === 'today' ? '최근 24시간 동안 활동한 대화가 없어요' : filter === 'working' ? '지금 작업 중인 대화가 없어요' : filter === 'pinned' ? '이어 할 일을 골라보세요' : filter === 'done' ? '아직 완료한 작업이 없어요' : '표시할 대화가 없어요'}</h3><p>{filter === 'pinned' ? '대화의 핀 버튼을 누르면 여기에 모입니다.' : '필터를 바꾸거나 새 대화를 시작한 뒤 새로고침해 보세요.'}</p><button className="button secondary" onClick={() => { setFilter('all'); setDirectory(''); setQuery(''); setAgent('all') }}>모든 작업 보기</button></div>}
           {(grouped ? [...groups] : [['', visible] as const]).map(([dir, items]) => <div className="session-group" key={dir || 'recent'}>
             {grouped && <div className="group-heading" title={dir}><FolderOpen size={15}/><strong>{folderName(dir)}</strong><span>{shortPath(dir)}</span><b>{items.length}</b></div>}
             {items.map(s => { const st = state[s.id] || {}; return <article key={s.id} className={`session-card ${active?.id === s.id ? 'selected' : ''} ${st.done ? 'done' : ''}`} onClick={() => setSelected(s.id)} tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') setSelected(s.id) }}>
@@ -229,7 +242,7 @@ function App() {
               <h3>{st.done && <CircleCheck size={15}/>} {titleOf(s)}</h3>
               <p className="card-summary">{st.ai?.summary || s.latestReply || s.latestRequest}</p>
               {st.note && <p className="card-note"><Pencil size={11}/>{st.note}</p>}
-              <div className="card-bottom"><span className={`status ${st.done ? 'completed' : s.status}`}>{st.done ? <Check size={11}/> : <span className="dot"/>}{st.done ? '완료' : s.status === 'reply' ? '최근 답변 있음' : s.status === 'recent' ? '최근 활동' : '이전 대화'}</span>
+              <div className="card-bottom"><StatusChip status={s.status} done={st.done}/>
                 <button className={`pin-button ${st.pinned ? 'pinned' : ''}`} title={st.pinned ? '이어 할 일에서 해제' : '이어 할 일로 고정'} onClick={e => { e.stopPropagation(); update(s.id, { pinned: !st.pinned }) }}><Pin size={14}/>{st.pinned ? '고정됨' : '할 일로 고정'}</button></div>
             </article> })}
           </div>)}
@@ -242,7 +255,7 @@ function App() {
         <div className="detail-scroll" key={active.id}>
           <div className="detail-agent" data-agent={active.agent}><AgentMark agent={active.agent}/><span>{active.agent === 'claude' ? 'Claude Code' : 'Codex'}</span><span className="detail-session">{active.sessionId.slice(0, 8)}</span></div>
           <h2>{titleOf(active)}</h2>
-          <div className="detail-updated"><Clock3 size={13}/><span>최근 활동 <time dateTime={new Date(active.updatedAt * 1000).toISOString()}>{exactTime(active.updatedAt)}</time></span></div>
+          <div className="detail-updated"><Clock3 size={13}/><span>최근 활동 <time dateTime={new Date(active.updatedAt * 1000).toISOString()}>{exactTime(active.updatedAt)}</time></span><StatusChip status={active.status} done={activeState.done}/></div>
           <button className="directory-link" title={active.cwd} onClick={() => perform(() => window.aidoo.showFolder(active.id))}><Folder size={13}/><span>{shortPath(active.cwd)}</span><ArrowUpRight size={12}/></button>
           <button className="button primary open-session" disabled={actionBusy || (!active.orcaHandle && active.cwdMissing)} onClick={() => perform(() => window.aidoo.openSession(active.id))}>{active.orcaHandle ? <><ArrowUpRight size={16}/> Orca에서 대화 열기</> : active.cwdMissing ? <><FolderX size={16}/> 작업 폴더가 지워졌어요</> : active.orcaWorktree ? <><ArrowUpRight size={16}/> Orca에서 세션 재개</> : <><Terminal size={16}/> Terminal에서 세션 재개</>}</button>
           <div className="detail-actions"><button onClick={() => update(active.id, { pinned: !activeState.pinned })}><Pin size={13}/>{activeState.pinned ? '고정 해제' : '이어 할 일로'}</button><button onClick={() => update(active.id, { done: !activeState.done })}><CircleCheck size={14}/>{activeState.done ? '완료 취소' : '완료 처리'}</button><button title="재개 명령 복사" onClick={() => perform(() => window.aidoo.copyResume(active.id), '재개 명령을 복사했어요.')}><Copy size={14}/></button></div>
@@ -258,7 +271,7 @@ function App() {
           <section className="title-suggestion"><div className="section-title"><h4>이름 추천</h4><span className="subtle-tag">{activeState.ai ? 'AI 추천' : '첫 요청에서'}</span></div><p>{activeState.ai?.title || active.suggestedTitle}</p><button onClick={() => startRename(active, true)}><Pencil size={12}/> 이 이름으로 변경<ChevronRight size={13}/></button></section>
           <section className="note-section"><div className="section-title"><h4>내가 이어 할 일</h4><span className="muted">입력 후 포커스를 옮기면 저장</span></div><textarea key={`${active.id}-note`} defaultValue={activeState.note || ''} maxLength={6000} onBlur={e => { if (e.target.value !== (activeState.note || '')) update(active.id, { note: e.target.value }) }} placeholder="다음에 돌아왔을 때 기억할 내용을 적어두세요."/></section>
           <details className="conversation" data-agent={active.agent}><summary>대화 기록 보기 <span>{active.messages.length}개 발췌</span></summary>{active.messages.map((m, i) => <div key={i} className={`message ${m.role}`}><strong>{m.role === 'user' ? '나' : active.agent === 'claude' ? 'Claude' : 'Codex'}</strong><p>{m.text}</p></div>)}</details>
-          <p className="detail-footnote">{active.orcaHandle ? '연결된 Orca 탭으로 이동합니다.' : active.cwdMissing ? '대화를 실행하던 워크스페이스 폴더가 삭제돼서 이어갈 수 없어요. 대화 기록은 그대로 볼 수 있어요.' : active.orcaWorktree ? 'Orca 워크스페이스에 새 탭을 열고 같은 세션을 재개합니다.' : 'Orca에 등록되지 않은 폴더라 Terminal에서 같은 세션을 재개합니다.'}<br/>실행 상태는 대화 기록만으로 확정하지 않습니다.</p>
+          <p className="detail-footnote">{active.orcaHandle ? '연결된 Orca 탭으로 이동합니다.' : active.cwdMissing ? '대화를 실행하던 워크스페이스 폴더가 삭제돼서 이어갈 수 없어요. 대화 기록은 그대로 볼 수 있어요.' : active.orcaWorktree ? 'Orca 워크스페이스에 새 탭을 열고 같은 세션을 재개합니다.' : 'Orca에 등록되지 않은 폴더라 Terminal에서 같은 세션을 재개합니다.'}<br/>작업 중 표시는 Claude 실행 상태와 Codex 작업 기록으로 15초마다 확인해요.</p>
         </div>
       </> : <div className="empty-detail"><Activity size={30}/><h3>한 번에 하나씩, 이어가세요.</h3><p>대화를 선택하면 진행 내용과<br/>다음 할 일을 확인할 수 있어요.</p></div>}</aside></div>
     </main>

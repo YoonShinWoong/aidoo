@@ -13,7 +13,8 @@ export const orcaCLI = '/Applications/Orca.app/Contents/Resources/bin/orca'
 const LOG_BUDGET = 768 * 1024
 const LIMIT = 500
 type Row = Record<string, any>
-interface Parsed { cwd: string; title: string; messages: Message[]; lastEvent: string }
+type Turn = 'open' | 'ended' | ''
+interface Parsed { cwd: string; title: string; messages: Message[]; turn: Turn }
 interface Link { handle: string; title: string; workspacePath: string }
 interface Worktree { id: string; path: string }
 const cache = new Map<string, { version: string; parsed: Parsed }>()
@@ -56,8 +57,15 @@ function contentText(content: any): string {
   return content.filter(b => ['text', 'input_text', 'output_text'].includes(b?.type))
     .map(b => b.text || '').join('\n')
 }
+function claudeTurn(row: Row): Turn {
+  const message = row.message || {}
+  if (row.type === 'assistant') return message.stop_reason && message.stop_reason !== 'tool_use' ? 'ended' : 'open'
+  if (Array.isArray(message.content) && message.content.some((b: Row) => b?.type === 'tool_result')) return 'open'
+  // Interrupts and local slash commands end the turn without an agent reply.
+  return /^\s*(\[Request interrupted|<local-command|<command-)/.test(contentText(message.content)) ? 'ended' : 'open'
+}
 export function parseRecords(lines: string[], agent: Agent): Parsed {
-  const parsed: Parsed = { cwd: '', title: '', messages: [], lastEvent: '' }
+  const parsed: Parsed = { cwd: '', title: '', messages: [], turn: '' }
   const seen = new Set<string>()
   for (const line of lines) {
     let row: Row
@@ -67,14 +75,16 @@ export function parseRecords(lines: string[], agent: Agent): Parsed {
       if (row.isSidechain) continue
       parsed.cwd ||= row.cwd || ''
       if (row.type === 'custom-title') parsed.title = row.customTitle || ''
+      if (row.type === 'system' && row.subtype === 'turn_duration') parsed.turn = 'ended'
       if (!['user', 'assistant'].includes(row.type)) continue
+      if (!row.isMeta && !row.isCompactSummary) parsed.turn = claudeTurn(row)
       role = row.type
       text = contentText(row.message?.content)
     } else {
       const p = row.payload || {}
       if (row.type === 'session_meta') parsed.cwd = p.cwd || ''
       if (row.type === 'event_msg' && ['task_started', 'task_complete', 'turn_aborted'].includes(p.type))
-        parsed.lastEvent = p.type
+        parsed.turn = p.type === 'task_started' ? 'open' : 'ended'
       if (row.type !== 'response_item' || p.type !== 'message' || !['user', 'assistant'].includes(p.role)) continue
       role = p.role
       text = contentText(p.content)
@@ -189,7 +199,38 @@ function addProjectAliases(domains: Row, aliases: ProjectAlias[]) {
   }
   for (const repoPath of repos.values()) aliases.push({ workspacePath: repoPath, projectPath: repoPath })
 }
-async function session(agent: Agent, sid: string, file: string, codexHome: string, meta: Row, links: Map<string, Link>, worktrees: Worktree[]): Promise<Session | null> {
+// Claude Code registers each running process with its session id and whether it is busy.
+async function liveClaude(): Promise<Map<string, string>> {
+  const dirs = [...new Set([path.join(home, '.claude/sessions'),
+    ...(process.env.CLAUDE_CONFIG_DIR ? [path.join(process.env.CLAUDE_CONFIG_DIR, 'sessions')] : [])])]
+  const records: Row[] = []
+  for (const dir of dirs)
+    for (const e of await entries(dir)) {
+      if (!e.isFile() || !e.name.endsWith('.json')) continue
+      const record = await json(path.join(dir, e.name))
+      if (record?.sessionId && Number.isInteger(record.pid)) records.push(record)
+    }
+  const live = new Map<string, string>()
+  if (!records.length) return live
+  // Exited processes leave their file behind and pids get reused, so the start time has to match too.
+  const { stdout } = await exec('/bin/ps', ['-o', 'pid=,lstart=', '-p', records.map(r => r.pid).join(',')],
+    { encoding: 'utf8', timeout: 5000, env: { ...process.env, TZ: 'UTC' } }).catch(error => ({ stdout: String(error.stdout || '') }))
+  const started = new Map(stdout.split('\n').map(line => line.trim().match(/^(\d+)\s+(.+)$/))
+    .filter(m => m !== null).map(m => [Number(m[1]), m[2].replace(/\s+/g, ' ')]))
+  for (const r of records) {
+    const start = started.get(r.pid)
+    if (!start || (r.procStart && start !== String(r.procStart).replace(/\s+/g, ' ').trim())) continue
+    if (live.get(r.sessionId) !== 'busy') live.set(r.sessionId, String(r.status || 'idle'))
+  }
+  return live
+}
+export function sessionStatus(agent: Agent, turn: Turn, lastRole: string | undefined, live: string | undefined, quietSeconds: number): Session['status'] {
+  if (live === 'busy') return 'working'
+  if (!live && turn === 'open') return quietSeconds < (agent === 'codex' ? 600 : 120) ? 'working' : 'stalled'
+  if (lastRole === 'assistant') return 'reply'
+  return quietSeconds < 120 ? 'recent' : 'idle'
+}
+async function session(agent: Agent, sid: string, file: string, codexHome: string, meta: Row, links: Map<string, Link>, worktrees: Worktree[], live = new Map<string, string>()): Promise<Session | null> {
   const parsed = await parseLog(file, agent)
   const cwd = meta.cwd || parsed.cwd
   if (!cwd || !parsed.messages.length) return null
@@ -199,22 +240,22 @@ async function session(agent: Agent, sid: string, file: string, codexHome: strin
   const originalTitle = meta.name || parsed.title || link?.title || meta.title || ''
   const first = requests[0]?.text || ''
   const suggestedTitle = compact(first.split('\n').find(l => l.trim()) || originalTitle, 52) || '새 작업'
-  let updatedAt = meta.updated_at || (await fs.stat(file)).mtimeMs / 1000
+  const modifiedAt = (await fs.stat(file)).mtimeMs / 1000
+  let updatedAt = meta.updated_at || modifiedAt
   if (updatedAt > 100000000000) updatedAt /= 1000
-  const reply = parsed.lastEvent === 'task_complete' || (parsed.messages.at(-1)?.role === 'assistant' && parsed.lastEvent !== 'task_started')
   return {
     id: `${agent}:${sid}`, sessionId: sid, agent, cwd, projectPath: link?.workspacePath || cwd,
     originalTitle: compact(originalTitle) || suggestedTitle, suggestedTitle,
     goal: compact(first, 400), latestRequest: compact(requests.at(-1)?.text || '', 600),
     latestReply: compact(replies.at(-1)?.text || '', 1000), messages: parsed.messages,
-    updatedAt, status: reply ? 'reply' : Date.now() / 1000 - updatedAt < 120 ? 'recent' : 'idle',
+    updatedAt, status: sessionStatus(agent, parsed.turn, parsed.messages.at(-1)?.role, live.get(sid), Date.now() / 1000 - Math.max(updatedAt, modifiedAt)),
     sourcePath: file, codexHome, orcaHandle: link?.handle || '', inOrca: !!link,
     orcaWorktree: containingWorktree(cwd, worktrees), cwdMissing: !existsSync(cwd)
   }
 }
 export async function collect(workspaceRoots: string[] = [path.join(home, 'workspace')]) {
   const warnings: string[] = []
-  const { links, aliases, worktrees } = await orcaLinks(warnings)
+  const [{ links, aliases, worktrees }, live] = await Promise.all([orcaLinks(warnings), liveClaude()])
   const sessions = new Map<string, Session>()
   const roots = [...new Set([path.join(home, '.claude/projects'),
     ...(process.env.CLAUDE_CONFIG_DIR ? [path.join(process.env.CLAUDE_CONFIG_DIR, 'projects')] : [])])]
@@ -232,7 +273,7 @@ export async function collect(workspaceRoots: string[] = [path.join(home, 'works
   candidates.sort((a, b) => b.mtime - a.mtime)
   for (const { file } of candidates.slice(0, LIMIT)) {
     try {
-      const item = await session('claude', path.basename(file, '.jsonl'), file, '', {}, links, worktrees)
+      const item = await session('claude', path.basename(file, '.jsonl'), file, '', {}, links, worktrees, live)
       if (item) sessions.set(item.id, item)
     } catch { warnings.push(`Claude 기록 일부를 읽지 못했습니다: ${path.basename(file)}`) }
   }
