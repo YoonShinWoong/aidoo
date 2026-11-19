@@ -114,6 +114,8 @@ function App() {
     reply: sessions.filter(s => s.status === 'reply' && !state[s.id]?.done).length,
     done: sessions.filter(s => state[s.id]?.done).length
   }
+  const pinnedFirst = data?.settings.pinnedFirst ?? true
+  const pinRank = (s: Session) => state[s.id]?.pinned && !state[s.id]?.done ? 1 : 0
   const filtered = sessions.filter(s => {
     const st = state[s.id] || {}
     if (filter === 'done' ? !st.done : st.done) return false
@@ -123,7 +125,7 @@ function App() {
     if (agent !== 'all' && s.agent !== agent) return false
     const q = query.toLocaleLowerCase().trim()
     return !q || [titleOf(s), s.projectPath, s.cwd, s.goal, s.latestRequest, s.latestReply, st.note, st.ai?.summary].join(' ').toLocaleLowerCase().includes(q)
-  }).sort((a, b) => b.updatedAt - a.updatedAt)
+  }).sort((a, b) => (pinnedFirst ? pinRank(b) - pinRank(a) : 0) || b.updatedAt - a.updatedAt)
   const dirCounts = new Map<string, number>()
   for (const s of filtered) dirCounts.set(s.projectPath, (dirCounts.get(s.projectPath) || 0) + 1)
   const dirs = [...dirCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -277,6 +279,7 @@ function App() {
     {toast && <div className={`toast ${toast.error ? 'error' : ''}`} role="status">{toast.error ? <Circle size={16}/> : <Check size={16}/>}<span>{toast.text}</span><button onClick={() => setToast(null)}><X size={14}/></button></div>}
     {showSettings && <div className="modal-backdrop" onClick={() => setShowSettings(false)}><div className="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={e => e.stopPropagation()}><div className="settings-heading"><div><span className="eyebrow">PREFERENCES</span><h2 id="settings-title">설정</h2></div><button className="icon-button" aria-label="설정 닫기" onClick={() => setShowSettings(false)}><X size={19}/></button></div>
       <section className="settings-section"><h3>화면 테마</h3><p>시스템 설정을 따르면 macOS 테마 변경에 맞춰 자동으로 바뀝니다.</p><div className="theme-options">{([['system','시스템 설정 따르기',Monitor],['light','라이트',Sun],['dark','다크',Moon]] as const).map(([value,label,Icon]) => <button key={value} aria-pressed={(data?.settings.theme || 'system') === value} className={(data?.settings.theme || 'system') === value ? 'selected' : ''} disabled={settingsBusy} onClick={() => changeSettings({ theme: value })}><Icon size={21}/><span>{label}</span>{(data?.settings.theme || 'system') === value && <Check size={13}/>}</button>)}</div></section>
+      <section className="settings-section setting-row"><div><h3 id="pinned-first-label">이어 할 일 먼저 보기</h3><p>핀으로 고정한 대화를 목록 맨 위에 모아요. 끄면 고른 정렬 기준만 적용해요.</p></div><button className="switch" role="switch" aria-checked={pinnedFirst} aria-labelledby="pinned-first-label" disabled={settingsBusy} onClick={() => changeSettings({ pinnedFirst: !pinnedFirst })}><span/></button></section>
       <section className="settings-section"><h3>프로젝트 상위 폴더</h3><p>바로 아래 폴더를 하나의 프로젝트로 묶습니다. 예: <code>workspace/my-app/src</code> → <code>my-app</code><br/>Orca·Git 워크트리는 원래 프로젝트와 함께 표시합니다.</p><div className="workspace-roots">{data?.settings.workspaceRoots.map(root => <div className="workspace-root" key={root}><Folder size={16}/><span title={root}>{shortPath(root)}</span><button className="icon-button" aria-label={`${root} 제거`} disabled={settingsBusy} onClick={() => changeSettings({ workspaceRoots: data.settings.workspaceRoots.filter(p => p !== root) })}><X size={15}/></button></div>)}</div><button className="button secondary" disabled={settingsBusy} onClick={addWorkspace}><Plus size={14}/> 상위 폴더 추가</button></section>
       <div className="settings-footer"><span>변경 사항은 자동으로 저장됩니다.</span><button className="button primary" onClick={() => setShowSettings(false)}>완료</button></div>
     </div></div>}

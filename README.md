@@ -47,7 +47,7 @@ A few Claude Code sessions. A few Codex sessions. Some open in Orca, some in a t
   Choose your workspace folders. Sessions in nested directories and Git worktrees are grouped with their original project, so `my-app/src` and `my-app/tests` belong together. Search across titles, conversation excerpts, summaries, and your notes.
 
 - **A next step for every conversation.**<br>
-  Read the latest request and reply, pin a session to your follow-up list, or mark it done. Relative and exact timestamps help you find where you left off. The list refreshes every 15 seconds.
+  Read the latest request and reply, pin a session to your follow-up list, or mark it done. Pinned sessions stay at the top of the list unless you turn that off in Settings. Relative and exact timestamps help you find where you left off. The list refreshes every 15 seconds.
 
 - **Back to the session.**<br>
   A matched Orca terminal opens in Orca. Other sessions resume by ID in macOS Terminal. You can also copy the resume command and use it in your preferred terminal.

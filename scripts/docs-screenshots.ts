@@ -29,7 +29,7 @@ async function main() {
   }))
   const snapshot: Snapshot = {
     sessions, warnings: [], scannedAt: now, aiAvailable: true,
-    settings: { theme: 'system', workspaceRoots: ['/Users/demo/workspace'] },
+    settings: { theme: 'system', workspaceRoots: ['/Users/demo/workspace'], pinnedFirst: true },
     state: {
       'sample-0': { pinned: true, note: '다음: 작은 화면에서 프로젝트 목록 확인', ai: { title: '워크스페이스 기준으로 세션 묶기', summary: '프로젝트 루트를 기준으로 Claude Code와 Codex 세션을 모았습니다. 하위 폴더와 워크트리는 원래 프로젝트에 함께 표시됩니다.', nextAction: '여러 프로젝트를 오가며 목록과 검색 결과가 일치하는지 확인하기.', updatedAt: now / 1000 } },
       'sample-2': { pinned: true }, 'sample-5': { done: true },

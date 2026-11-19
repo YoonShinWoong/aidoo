@@ -21,7 +21,7 @@ function changeNotes<T>(action: () => Promise<T>): Promise<T> {
   return result
 }
 const renamePending = new Set<string>()
-let settings: Settings = { theme: 'system', workspaceRoots: [path.join(home, 'workspace')] }
+let settings: Settings = { theme: 'system', workspaceRoots: [path.join(home, 'workspace')], pinnedFirst: true }
 let scanning: Promise<any> | null = null
 let saving = Promise.resolve()
 const aiPending = new Set<string>()
@@ -108,6 +108,10 @@ function configureIPC() {
     if ('theme' in patch) {
       if (!['system', 'light', 'dark'].includes(patch.theme)) throw new Error('유효하지 않은 테마')
       next.theme = patch.theme
+    }
+    if ('pinnedFirst' in patch) {
+      if (typeof patch.pinnedFirst !== 'boolean') throw new Error('유효하지 않은 정렬 설정')
+      next.pinnedFirst = patch.pinnedFirst
     }
     if ('workspaceRoots' in patch) {
       if (!Array.isArray(patch.workspaceRoots) || patch.workspaceRoots.length > 20 ||
@@ -234,6 +238,7 @@ else {
       if (['system', 'light', 'dark'].includes(saved.theme)) settings.theme = saved.theme
       if (Array.isArray(saved.workspaceRoots) && saved.workspaceRoots.every((p: unknown) => typeof p === 'string' && path.isAbsolute(p)))
         settings.workspaceRoots = saved.workspaceRoots
+      if (typeof saved.pinnedFirst === 'boolean') settings.pinnedFirst = saved.pinnedFirst
     } catch { /* first launch uses the system theme */ }
     nativeTheme.themeSource = settings.theme
     nativeTheme.on('updated', () => win?.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#141414' : '#f7f7f7'))

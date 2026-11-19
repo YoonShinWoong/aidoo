@@ -32,6 +32,24 @@ try {
   const cardCount = await page.locator('.session-card').count()
   const times = await page.locator('.session-card .card-time').evaluateAll(els => els.map(e => Date.parse(e.getAttribute('datetime')!)))
   expect(times).toEqual([...times].sort((a, b) => b - a))
+  const pinTarget = page.locator('.session-card').nth(2)
+  const pinTitle = (await pinTarget.locator('h3').textContent())!
+  await pinTarget.locator('.pin-button').click()
+  await expect(page.locator('.session-card').first().locator('h3')).toHaveText(pinTitle)
+  const togglePinnedFirst = async (checked: boolean) => {
+    await page.getByRole('button', { name: '설정 ⌘ ,' }).click()
+    await page.getByRole('switch', { name: '이어 할 일 먼저 보기' }).click()
+    await expect(page.getByRole('switch', { name: '이어 할 일 먼저 보기' })).toHaveAttribute('aria-checked', String(checked))
+    await page.getByRole('button', { name: '설정 닫기' }).click()
+  }
+  await togglePinnedFirst(false)
+  const plainTimes = await page.locator('.session-card .card-time').evaluateAll(els => els.map(e => Date.parse(e.getAttribute('datetime')!)))
+  expect(plainTimes).toEqual([...plainTimes].sort((a, b) => b - a))
+  await expect(page.locator('.session-card').first().locator('h3')).not.toHaveText(pinTitle)
+  await togglePinnedFirst(true)
+  await expect(page.locator('.session-card').first().locator('h3')).toHaveText(pinTitle)
+  await page.locator('.session-card').first().locator('.pin-button').click()
+  await expect(page.locator('.session-card .pin-button.pinned')).toHaveCount(0)
   expect(await page.locator('.group-heading').count()).toBe(0)
   await page.getByRole('button', { name: '프로젝트별' }).click()
   await expect(page.locator('.group-heading').first()).toBeVisible()
@@ -118,6 +136,7 @@ try {
   await page.getByRole('button', { name: '설정 닫기' }).click()
   const savedSettings = JSON.parse(await (await import('node:fs/promises')).readFile(path.join(dataDir, 'settings.json'), 'utf8'))
   expect(savedSettings.theme).toBe('system')
+  expect(savedSettings.pinnedFirst).toBe(true)
   await expect(page.locator('.card-time').first()).toHaveAttribute('datetime', /T/)
   await page.screenshot({ path: '/tmp/aidoo-workspace.png' })
   // No agent session mutation; aliases and todo state use an isolated app data dir.
