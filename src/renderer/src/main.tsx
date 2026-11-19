@@ -34,6 +34,10 @@ function relativeTime(seconds: number) {
 function AgentMark({ agent, small = false }: { agent: string; small?: boolean }) {
   return <span className={`agent-mark ${small ? 'small' : ''}`} data-agent={agent}>{agent === 'claude' ? <Sparkles size={small ? 11 : 17} /> : <Code2 size={small ? 12 : 18} />}</span>
 }
+function SettingSwitch({ id, title, description, checked, disabled, onChange }: { id: string; title: string; description: string; checked: boolean; disabled: boolean; onChange: (next: boolean) => void }) {
+  return <section className="settings-section setting-row"><div><h3 id={id}>{title}</h3><p>{description}</p></div>
+    <button className="switch" role="switch" aria-checked={checked} aria-labelledby={id} disabled={disabled} onClick={() => onChange(!checked)}><span/></button></section>
+}
 function StatusChip({ status, done }: { status: Session['status']; done?: boolean }) {
   return <span className={`status ${done ? 'completed' : status}`} title={done ? undefined : statusLabels[status][1]}>
     {done ? <Check size={11}/> : <span className="dot"/>}{done ? '완료' : statusLabels[status][0]}</span>
@@ -162,6 +166,12 @@ function App() {
       return true
     } catch (error) { notify(errorMessage(error), true); return false }
   }
+  async function toggleDone(s: Session) {
+    const done = !state[s.id]?.done
+    if (!await update(s.id, { done }) || !done || !data?.settings.closeOrcaOnDone || !s.orcaHandle) return
+    await perform(() => window.aidoo.closeOrca(s.id), 'Orca 탭도 닫았어요.')
+    scan()
+  }
   async function perform(action: () => Promise<unknown>, success?: string) {
     setActionBusy(true)
     try { await action(); if (success) notify(success) }
@@ -259,7 +269,7 @@ function App() {
           <div className="detail-updated"><Clock3 size={13}/><span>최근 활동 <time dateTime={new Date(active.updatedAt * 1000).toISOString()}>{exactTime(active.updatedAt)}</time></span><StatusChip status={active.status} done={activeState.done}/></div>
           <button className="directory-link" title={active.cwd} onClick={() => perform(() => window.aidoo.showFolder(active.id))}><Folder size={13}/><span>{shortPath(active.cwd)}</span><ArrowUpRight size={12}/></button>
           <button className="button primary open-session" disabled={actionBusy || (!active.orcaHandle && active.cwdMissing)} onClick={() => perform(() => window.aidoo.openSession(active.id))}>{active.orcaHandle ? <><ArrowUpRight size={16}/> Orca에서 대화 열기</> : active.cwdMissing ? <><FolderX size={16}/> 작업 폴더가 지워졌어요</> : active.orcaWorktree ? <><ArrowUpRight size={16}/> Orca에서 세션 재개</> : <><Terminal size={16}/> Terminal에서 세션 재개</>}</button>
-          <div className="detail-actions"><button onClick={() => update(active.id, { pinned: !activeState.pinned })}><Pin size={13}/>{activeState.pinned ? '고정 해제' : '이어 할 일로'}</button><button onClick={() => update(active.id, { done: !activeState.done })}><CircleCheck size={14}/>{activeState.done ? '완료 취소' : '완료 처리'}</button><button title="재개 명령 복사" onClick={() => perform(() => window.aidoo.copyResume(active.id), '재개 명령을 복사했어요.')}><Copy size={14}/></button></div>
+          <div className="detail-actions"><button onClick={() => update(active.id, { pinned: !activeState.pinned })}><Pin size={13}/>{activeState.pinned ? '고정 해제' : '이어 할 일로'}</button><button onClick={() => toggleDone(active)}><CircleCheck size={14}/>{activeState.done ? '완료 취소' : '완료 처리'}</button><button title="재개 명령 복사" onClick={() => perform(() => window.aidoo.copyResume(active.id), '재개 명령을 복사했어요.')}><Copy size={14}/></button></div>
           <div className="detail-divider"/>
           <section className="summary-section"><div className="section-title"><h4><Sparkles size={14}/> {activeState.ai ? 'AI 작업 요약' : '최근 대화 발췌'}</h4><span className="subtle-tag" data-agent={activeState.ai ? 'claude' : undefined}>{activeState.ai ? 'Claude' : '로컬'}</span></div>
             {activeState.ai ? <><p className="ai-text">{activeState.ai.summary}</p>{activeState.ai.updatedAt < active.updatedAt && <p className="stale-note">요약 이후 새 대화가 있어요. 다시 요약해 보세요.</p>}</> : <>
@@ -279,7 +289,8 @@ function App() {
     {toast && <div className={`toast ${toast.error ? 'error' : ''}`} role="status">{toast.error ? <Circle size={16}/> : <Check size={16}/>}<span>{toast.text}</span><button onClick={() => setToast(null)}><X size={14}/></button></div>}
     {showSettings && <div className="modal-backdrop" onClick={() => setShowSettings(false)}><div className="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={e => e.stopPropagation()}><div className="settings-heading"><div><span className="eyebrow">PREFERENCES</span><h2 id="settings-title">설정</h2></div><button className="icon-button" aria-label="설정 닫기" onClick={() => setShowSettings(false)}><X size={19}/></button></div>
       <section className="settings-section"><h3>화면 테마</h3><p>시스템 설정을 따르면 macOS 테마 변경에 맞춰 자동으로 바뀝니다.</p><div className="theme-options">{([['system','시스템 설정 따르기',Monitor],['light','라이트',Sun],['dark','다크',Moon]] as const).map(([value,label,Icon]) => <button key={value} aria-pressed={(data?.settings.theme || 'system') === value} className={(data?.settings.theme || 'system') === value ? 'selected' : ''} disabled={settingsBusy} onClick={() => changeSettings({ theme: value })}><Icon size={21}/><span>{label}</span>{(data?.settings.theme || 'system') === value && <Check size={13}/>}</button>)}</div></section>
-      <section className="settings-section setting-row"><div><h3 id="pinned-first-label">이어 할 일 먼저 보기</h3><p>핀으로 고정한 대화를 목록 맨 위에 모아요. 끄면 고른 정렬 기준만 적용해요.</p></div><button className="switch" role="switch" aria-checked={pinnedFirst} aria-labelledby="pinned-first-label" disabled={settingsBusy} onClick={() => changeSettings({ pinnedFirst: !pinnedFirst })}><span/></button></section>
+      <SettingSwitch id="pinned-first-label" title="이어 할 일 먼저 보기" description="핀으로 고정한 대화를 목록 맨 위에 모아요. 끄면 고른 정렬 기준만 적용해요." checked={pinnedFirst} disabled={settingsBusy} onChange={pinnedFirst => changeSettings({ pinnedFirst })}/>
+      <SettingSwitch id="close-orca-label" title="완료하면 Orca 탭 닫기" description="완료 처리할 때 그 대화가 열린 Orca 탭을 닫아요. 대화 기록은 남아서 언제든 다시 열 수 있고, 에이전트가 작업 중이면 닫지 않아요." checked={!!data?.settings.closeOrcaOnDone} disabled={settingsBusy} onChange={closeOrcaOnDone => changeSettings({ closeOrcaOnDone })}/>
       <section className="settings-section"><h3>프로젝트 상위 폴더</h3><p>바로 아래 폴더를 하나의 프로젝트로 묶습니다. 예: <code>workspace/my-app/src</code> → <code>my-app</code><br/>Orca·Git 워크트리는 원래 프로젝트와 함께 표시합니다.</p><div className="workspace-roots">{data?.settings.workspaceRoots.map(root => <div className="workspace-root" key={root}><Folder size={16}/><span title={root}>{shortPath(root)}</span><button className="icon-button" aria-label={`${root} 제거`} disabled={settingsBusy} onClick={() => changeSettings({ workspaceRoots: data.settings.workspaceRoots.filter(p => p !== root) })}><X size={15}/></button></div>)}</div><button className="button secondary" disabled={settingsBusy} onClick={addWorkspace}><Plus size={14}/> 상위 폴더 추가</button></section>
       <div className="settings-footer"><span>변경 사항은 자동으로 저장됩니다.</span><button className="button primary" onClick={() => setShowSettings(false)}>완료</button></div>
     </div></div>}

@@ -138,6 +138,13 @@ async function orcaJSON(args: string[]) {
   const { stdout } = await run(orcaCLI, [...args, '--json'], 5000)
   return JSON.parse(stdout)
 }
+// Split panes may hold unrelated work, so only a tab holding nothing but this terminal is closed whole.
+export function orcaCloseArgs(handle: string, terminals: Row[]) {
+  const tabId = terminals.find(t => t.handle === handle)?.tabId
+  if (!tabId) return null
+  const alone = terminals.filter(t => t.tabId === tabId).length === 1
+  return ['terminal', 'close', '--terminal', handle, ...(alone ? ['--tab'] : []), '--json']
+}
 export function containingWorktree(cwd: string, worktrees: Worktree[]) {
   return worktrees.filter(w => cwd === w.path || cwd.startsWith(w.path.replace(/\/$/, '') + '/'))
     .sort((a, b) => b.path.length - a.path.length)[0]?.id || ''

@@ -5,6 +5,7 @@ const api: AidooAPI = {
   update: (id, patch) => ipcRenderer.invoke('update', id, patch),
   openSession: id => ipcRenderer.invoke('open-session', id),
   renameOrca: (id, title) => ipcRenderer.invoke('rename-orca', id, title),
+  closeOrca: id => ipcRenderer.invoke('close-orca', id),
   renameSession: (id, title, sync) => ipcRenderer.invoke('rename-session', id, title, sync),
   listNotes: () => ipcRenderer.invoke('notes-list'),
   saveNote: note => ipcRenderer.invoke('notes-save', note),

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell, clipboard, Tray, Menu, nativeImage, nativeTheme, dialog } from 'electron'
 import { promises as fs, existsSync } from 'node:fs'
 import path from 'node:path'
-import { collect, findCLI, orcaCLI, resumeCommand, run, home } from './collector'
+import { collect, findCLI, orcaCLI, orcaCloseArgs, resumeCommand, run, home } from './collector'
 import type { Session, SessionState, AiSummary, Settings, Note } from '../shared/types'
 import { renameClaude, renameCodex, validateTitle, syncRename } from './rename'
 
@@ -21,7 +21,7 @@ function changeNotes<T>(action: () => Promise<T>): Promise<T> {
   return result
 }
 const renamePending = new Set<string>()
-let settings: Settings = { theme: 'system', workspaceRoots: [path.join(home, 'workspace')], pinnedFirst: true }
+let settings: Settings = { theme: 'system', workspaceRoots: [path.join(home, 'workspace')], pinnedFirst: true, closeOrcaOnDone: false }
 let scanning: Promise<any> | null = null
 let saving = Promise.resolve()
 const aiPending = new Set<string>()
@@ -109,9 +109,10 @@ function configureIPC() {
       if (!['system', 'light', 'dark'].includes(patch.theme)) throw new Error('유효하지 않은 테마')
       next.theme = patch.theme
     }
-    if ('pinnedFirst' in patch) {
-      if (typeof patch.pinnedFirst !== 'boolean') throw new Error('유효하지 않은 정렬 설정')
-      next.pinnedFirst = patch.pinnedFirst
+    for (const key of ['pinnedFirst', 'closeOrcaOnDone'] as const) {
+      if (!(key in patch)) continue
+      if (typeof patch[key] !== 'boolean') throw new Error('유효하지 않은 설정')
+      next[key] = patch[key]
     }
     if ('workspaceRoots' in patch) {
       if (!Array.isArray(patch.workspaceRoots) || patch.workspaceRoots.length > 20 ||
@@ -151,6 +152,21 @@ function configureIPC() {
   ipcMain.handle('rename-orca', async (_e, id, title) => {
     if (typeof title !== 'string' || !title.trim() || title.length > 180) throw new Error('이름은 1~180자로 입력해 주세요.')
     await orcaAction(getSession(id), 'rename', title.trim())
+  })
+  ipcMain.handle('close-orca', async (_e, id) => {
+    const session = getSession(id)
+    if (!session.orcaHandle) throw new Error('현재 연결된 Orca 탭이 없어요.')
+    if (session.status === 'working') throw new Error('에이전트가 작업 중이라 Orca 탭은 닫지 않았어요.')
+    let args: string[] | null
+    try {
+      const { stdout } = await run(orcaCLI, ['terminal', 'list', '--limit', '500', '--json'], 5000)
+      args = orcaCloseArgs(session.orcaHandle, JSON.parse(stdout).result?.terminals || [])
+    } catch { throw new Error('Orca에 연결하지 못해서 탭을 닫지 못했어요.') }
+    if (!args) throw new Error('Orca 탭이 이미 닫혔거나 바뀌었어요. 새로고침해 주세요.')
+    try {
+      const { stdout } = await run(orcaCLI, args, 15000)
+      if (!JSON.parse(stdout).ok) throw new Error('refused')
+    } catch { throw new Error('Orca 탭을 닫지 못했어요. 새로고침 후 다시 시도해 주세요.') }
   })
   ipcMain.handle('open-session', async (_e, id) => {
     const session = getSession(id)
@@ -239,6 +255,7 @@ else {
       if (Array.isArray(saved.workspaceRoots) && saved.workspaceRoots.every((p: unknown) => typeof p === 'string' && path.isAbsolute(p)))
         settings.workspaceRoots = saved.workspaceRoots
       if (typeof saved.pinnedFirst === 'boolean') settings.pinnedFirst = saved.pinnedFirst
+      if (typeof saved.closeOrcaOnDone === 'boolean') settings.closeOrcaOnDone = saved.closeOrcaOnDone
     } catch { /* first launch uses the system theme */ }
     nativeTheme.themeSource = settings.theme
     nativeTheme.on('updated', () => win?.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#141414' : '#f7f7f7'))

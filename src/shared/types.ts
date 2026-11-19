@@ -11,7 +11,7 @@ export interface AiSummary { title: string; summary: string; nextAction: string;
 export interface SessionState { title?: string; pinned?: boolean; done?: boolean; note?: string; ai?: AiSummary }
 export interface Note { id: string; title: string; body: string; updatedAt: number }
 export interface RenameResult { state: SessionState; sourceUpdated: boolean; orcaUpdated: boolean; warnings: string[] }
-export interface Settings { theme: 'system' | 'light' | 'dark'; workspaceRoots: string[]; pinnedFirst: boolean }
+export interface Settings { theme: 'system' | 'light' | 'dark'; workspaceRoots: string[]; pinnedFirst: boolean; closeOrcaOnDone: boolean }
 export interface Snapshot {
   sessions: Session[]; warnings: string[]; scannedAt: number;
   state: Record<string, SessionState>; aiAvailable: boolean; settings: Settings;
@@ -21,6 +21,7 @@ export interface AidooAPI {
   update(id: string, patch: Partial<SessionState>): Promise<SessionState>;
   openSession(id: string): Promise<void>;
   renameOrca(id: string, title: string): Promise<void>;
+  closeOrca(id: string): Promise<void>;
   renameSession(id: string, title: string, sync: boolean): Promise<RenameResult>;
   listNotes(): Promise<Note[]>;
   saveNote(note: Note): Promise<Note>;

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { parseRecords, parseLog, shellQuote, clean, sql, run, containingWorktree, sessionStatus } from '../src/main/collector'
+import { parseRecords, parseLog, shellQuote, clean, sql, run, containingWorktree, sessionStatus, orcaCloseArgs } from '../src/main/collector'
 
 test('Claude adapter excludes tool output, sidechains, and incomplete lines', () => {
   const rows = [
@@ -119,4 +119,10 @@ test('session status separates running agents from finished turns and dropped on
   assert.equal(sessionStatus('codex', 'open', 'assistant', undefined, 300), 'working')
   assert.equal(sessionStatus('codex', 'ended', 'assistant', undefined, 300), 'reply')
   assert.equal(sessionStatus('claude', 'ended', 'user', undefined, 3600), 'idle')
+})
+test('Orca close takes the whole tab only when the agent terminal is alone in it', () => {
+  const terminals = [{ handle: 'term_a', tabId: 'tab1' }, { handle: 'term_b', tabId: 'tab2' }, { handle: 'term_c', tabId: 'tab2' }]
+  assert.deepEqual(orcaCloseArgs('term_a', terminals), ['terminal', 'close', '--terminal', 'term_a', '--tab', '--json'])
+  assert.deepEqual(orcaCloseArgs('term_b', terminals), ['terminal', 'close', '--terminal', 'term_b', '--json'])
+  assert.equal(orcaCloseArgs('term_gone', terminals), null)
 })
