@@ -195,7 +195,7 @@ async function orcaLinks(warnings: string[]) {
       }
     } catch { warnings.push(`Orca 프로필을 읽지 못했습니다: ${profile.name}`) }
   }
-  return { links, aliases, worktrees }
+  return { links, aliases, worktrees, terminals }
 }
 function addProjectAliases(domains: Row, aliases: ProjectAlias[]) {
   const repos = new Map<string, string>((domains.repos || []).filter((r: Row) => r.path).map((r: Row) => [r.id, r.path]))
@@ -209,7 +209,7 @@ function addProjectAliases(domains: Row, aliases: ProjectAlias[]) {
   for (const repoPath of repos.values()) aliases.push({ workspacePath: repoPath, projectPath: repoPath })
 }
 // Claude Code registers each running process with its session id and whether it is busy.
-async function liveClaude(): Promise<Map<string, string>> {
+async function liveClaude(): Promise<{ live: Map<string, string>; handles: Map<string, string> }> {
   const dirs = [...new Set([path.join(home, '.claude/sessions'),
     ...(process.env.CLAUDE_CONFIG_DIR ? [path.join(process.env.CLAUDE_CONFIG_DIR, 'sessions')] : [])])]
   const records: Row[] = []
@@ -219,19 +219,34 @@ async function liveClaude(): Promise<Map<string, string>> {
       const record = await json(path.join(dir, e.name))
       if (record?.sessionId && Number.isInteger(record.pid)) records.push(record)
     }
-  const live = new Map<string, string>()
-  if (!records.length) return live
+  const live = new Map<string, string>(), handles = new Map<string, string>()
+  if (!records.length) return { live, handles }
   // Exited processes leave their file behind and pids get reused, so the start time has to match too.
   const { stdout } = await exec('/bin/ps', ['-o', 'pid=,lstart=', '-p', records.map(r => r.pid).join(',')],
     { encoding: 'utf8', timeout: 5000, env: { ...process.env, TZ: 'UTC' } }).catch(error => ({ stdout: String(error.stdout || '') }))
   const started = new Map(stdout.split('\n').map(line => line.trim().match(/^(\d+)\s+(.+)$/))
     .filter(m => m !== null).map(m => [Number(m[1]), m[2].replace(/\s+/g, ' ')]))
-  for (const r of records) {
+  const alive = records.filter(r => {
     const start = started.get(r.pid)
-    if (!start || (r.procStart && start !== String(r.procStart).replace(/\s+/g, ' ').trim())) continue
-    if (live.get(r.sessionId) !== 'busy') live.set(r.sessionId, String(r.status || 'idle'))
+    return start && (!r.procStart || start === String(r.procStart).replace(/\s+/g, ' ').trim())
+  })
+  for (const r of alive) if (live.get(r.sessionId) !== 'busy') live.set(r.sessionId, String(r.status || 'idle'))
+  if (alive.length) {
+    // Orca writes new tabs to its saved state late, so a running agent is matched by the terminal handle in its own environment.
+    const { stdout: env } = await exec('/bin/ps', ['eww', '-o', 'pid=,command=', '-p', alive.map(r => r.pid).join(',')],
+      { encoding: 'utf8', timeout: 5000, maxBuffer: 16 * 1024 * 1024 }).catch(error => ({ stdout: String(error.stdout || '') }))
+    const byPid = orcaTerminalHandles(env)
+    for (const r of alive) if (byPid.has(r.pid)) handles.set(r.sessionId, byPid.get(r.pid)!)
   }
-  return live
+  return { live, handles }
+}
+export function orcaTerminalHandles(psOutput: string) {
+  const handles = new Map<number, string>()
+  for (const line of psOutput.split('\n')) {
+    const m = line.match(/^\s*(\d+)\s.*\sORCA_TERMINAL_HANDLE=(term_[\w-]+)/)
+    if (m) handles.set(Number(m[1]), m[2])
+  }
+  return handles
 }
 export function sessionStatus(agent: Agent, turn: Turn, lastRole: string | undefined, live: string | undefined, quietSeconds: number): Session['status'] {
   if (live === 'busy') return 'working'
@@ -264,7 +279,13 @@ async function session(agent: Agent, sid: string, file: string, codexHome: strin
 }
 export async function collect(workspaceRoots: string[] = [path.join(home, 'workspace')]) {
   const warnings: string[] = []
-  const [{ links, aliases, worktrees }, live] = await Promise.all([orcaLinks(warnings), liveClaude()])
+  const [{ links, aliases, worktrees, terminals }, { live, handles }] = await Promise.all([orcaLinks(warnings), liveClaude()])
+  for (const [sid, handle] of handles) {
+    const terminal = terminals.find(t => t.handle === handle)
+    if (!terminal) continue
+    const known = links.get(`claude:${sid}`)
+    links.set(`claude:${sid}`, { handle, title: known?.title || terminal.title || '', workspacePath: terminal.worktreePath || known?.workspacePath || '' })
+  }
   const sessions = new Map<string, Session>()
   const roots = [...new Set([path.join(home, '.claude/projects'),
     ...(process.env.CLAUDE_CONFIG_DIR ? [path.join(process.env.CLAUDE_CONFIG_DIR, 'projects')] : [])])]

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { parseRecords, parseLog, shellQuote, clean, sql, run, containingWorktree, sessionStatus, orcaCloseArgs } from '../src/main/collector'
+import { parseRecords, parseLog, shellQuote, clean, sql, run, containingWorktree, sessionStatus, orcaCloseArgs, orcaTerminalHandles } from '../src/main/collector'
 
 test('Claude adapter excludes tool output, sidechains, and incomplete lines', () => {
   const rows = [
@@ -125,4 +125,9 @@ test('Orca close takes the whole tab only when the agent terminal is alone in it
   assert.deepEqual(orcaCloseArgs('term_a', terminals), ['terminal', 'close', '--terminal', 'term_a', '--tab', '--json'])
   assert.deepEqual(orcaCloseArgs('term_b', terminals), ['terminal', 'close', '--terminal', 'term_b', '--json'])
   assert.equal(orcaCloseArgs('term_gone', terminals), null)
+})
+test('running agents are tied to the Orca terminal named in their environment', () => {
+  const ps = ['  101 claude --resume s1 PATH=/bin ORCA_TAB_ID=tab1 ORCA_TERMINAL_HANDLE=term_aa-11 TERM=xterm',
+    '  202 claude PATH=/bin', '303 codex ORCA_TERMINAL_HANDLE=term_bb-22'].join('\n')
+  assert.deepEqual([...orcaTerminalHandles(ps)], [[101, 'term_aa-11'], [303, 'term_bb-22']])
 })
