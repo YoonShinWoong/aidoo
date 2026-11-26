@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { parseRecords, parseLog, shellQuote, clean, sql, run, containingWorktree, sessionStatus, orcaCloseArgs, orcaTerminalHandles } from '../src/main/collector'
+import { parseRecords, parseLog, shellQuote, clean, sql, run, containingWorktree, sessionStatus, orcaCloseArgs, orcaTerminalHandles, codexTerminals } from '../src/main/collector'
 
 test('Claude adapter excludes tool output, sidechains, and incomplete lines', () => {
   const rows = [
@@ -130,4 +130,13 @@ test('running agents are tied to the Orca terminal named in their environment', 
   const ps = ['  101 claude --resume s1 PATH=/bin ORCA_TAB_ID=tab1 ORCA_TERMINAL_HANDLE=term_aa-11 TERM=xterm',
     '  202 claude PATH=/bin', '303 codex ORCA_TERMINAL_HANDLE=term_bb-22'].join('\n')
   assert.deepEqual([...orcaTerminalHandles(ps)], [[101, 'term_aa-11'], [303, 'term_bb-22']])
+})
+test('running Codex terminals are tied to the thread they resumed or hold open, never to app servers', () => {
+  const a = '11111111-1111-7111-8111-111111111111', b = '22222222-2222-7222-8222-222222222222', c = '33333333-3333-7333-8333-333333333333'
+  const args = [`  10 codex resume ${a}`, '  20 codex -m model', '  30 codex app-server --listen unix:///tmp/x.sock'].join('\n')
+  const env = [`  10 codex resume ${a} ORCA_TERMINAL_HANDLE=term_one`, '  20 codex -m model ORCA_TERMINAL_HANDLE=term_two',
+    '  30 codex app-server ORCA_TERMINAL_HANDLE=term_two'].join('\n')
+  const files = ['p20', `n/Users/x/.codex/sessions/2026/11/26/rollout-2026-11-26T12-16-48-${b}.jsonl`, 'n/Users/x/.codex/state_5.sqlite',
+    'p30', `n/Users/x/.codex/sessions/2026/11/26/rollout-2026-11-26T12-35-02-${c}.jsonl`].join('\n')
+  assert.deepEqual([...codexTerminals(args, env, files)], [[a, 'term_one'], [b, 'term_two']])
 })

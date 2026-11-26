@@ -240,6 +240,36 @@ async function liveClaude(): Promise<{ live: Map<string, string>; handles: Map<s
   }
   return { live, handles }
 }
+// Codex has no process registry: the thread comes from `resume <id>` or the rollout file the process holds open.
+async function liveCodex(): Promise<Map<string, string>> {
+  const quiet = (file: string, args: string[]) => exec(file, args, { encoding: 'utf8', timeout: 5000, maxBuffer: 16 * 1024 * 1024 })
+    .then(r => r.stdout).catch(error => String(error.stdout || ''))
+  const pids = (await quiet('/usr/bin/pgrep', ['-x', 'codex'])).split('\n').filter(Boolean).join(',')
+  if (!pids) return new Map()
+  const [args, env] = await Promise.all([quiet('/bin/ps', ['-o', 'pid=,command=', '-p', pids]), quiet('/bin/ps', ['eww', '-o', 'pid=,command=', '-p', pids])])
+  const tui = [...orcaTerminalHandles(env).keys()].filter(pid => codexIsTUI(args, pid))
+  return tui.length ? codexTerminals(args, env, await quiet('/usr/sbin/lsof', ['-p', tui.join(','), '-Fpn'])) : new Map()
+}
+function codexIsTUI(args: string, pid: number) {
+  const line = args.split('\n').find(l => Number(l.trim().split(/\s/)[0]) === pid) || ''
+  return !/\s(app-server|exec-server|exec|mcp-server)(\s|$)/.test(line)
+}
+export function codexTerminals(args: string, env: string, files: string) {
+  const handles = orcaTerminalHandles(env), threads = new Map<string, string>()
+  for (const [pid, handle] of handles) {
+    if (!codexIsTUI(args, pid)) continue
+    const line = args.split('\n').find(l => Number(l.trim().split(/\s/)[0]) === pid) || ''
+    const resumed = line.match(/\sresume\s+([0-9a-f]{8}-[0-9a-f-]{27})/)
+    if (resumed) threads.set(resumed[1], handle)
+  }
+  let pid = 0
+  for (const line of files.split('\n')) {
+    if (line.startsWith('p')) pid = Number(line.slice(1))
+    const rollout = line.startsWith('n') && line.match(/rollout-[^/]*-([0-9a-f]{8}-[0-9a-f-]{27})\.jsonl$/)
+    if (rollout && handles.has(pid) && codexIsTUI(args, pid)) threads.set(rollout[1], handles.get(pid)!)
+  }
+  return threads
+}
 export function orcaTerminalHandles(psOutput: string) {
   const handles = new Map<number, string>()
   for (const line of psOutput.split('\n')) {
@@ -279,13 +309,14 @@ async function session(agent: Agent, sid: string, file: string, codexHome: strin
 }
 export async function collect(workspaceRoots: string[] = [path.join(home, 'workspace')]) {
   const warnings: string[] = []
-  const [{ links, aliases, worktrees, terminals }, { live, handles }] = await Promise.all([orcaLinks(warnings), liveClaude()])
-  for (const [sid, handle] of handles) {
-    const terminal = terminals.find(t => t.handle === handle)
-    if (!terminal) continue
-    const known = links.get(`claude:${sid}`)
-    links.set(`claude:${sid}`, { handle, title: known?.title || terminal.title || '', workspacePath: terminal.worktreePath || known?.workspacePath || '' })
-  }
+  const [{ links, aliases, worktrees, terminals }, { live, handles }, codexHandles] = await Promise.all([orcaLinks(warnings), liveClaude(), liveCodex()])
+  for (const [agent, running] of [['claude', handles], ['codex', codexHandles]] as const)
+    for (const [sid, handle] of running) {
+      const terminal = terminals.find(t => t.handle === handle)
+      if (!terminal) continue
+      const known = links.get(`${agent}:${sid}`)
+      links.set(`${agent}:${sid}`, { handle, title: known?.title || terminal.title || '', workspacePath: terminal.worktreePath || known?.workspacePath || '' })
+    }
   const sessions = new Map<string, Session>()
   const roots = [...new Set([path.join(home, '.claude/projects'),
     ...(process.env.CLAUDE_CONFIG_DIR ? [path.join(process.env.CLAUDE_CONFIG_DIR, 'projects')] : [])])]
